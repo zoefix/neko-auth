@@ -89,19 +89,43 @@ GitHub (zoe@example.com)
 
 ## 安裝
 
-```bash
-cargo install --path .
-```
-
-或者只建置一個執行檔：
+**macOS、Linux、WSL：**
 
 ```bash
-cargo build --release
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-保險庫是一個靜態執行檔，沒有執行時相依；SQLite 是編譯進去的。
+**Windows PowerShell：**
 
-如果不想要 QR code 圖片解碼（它會引入 `image`，一大片解析程式碼面）和自動更新：
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
+
+**Windows CMD：**
+
+```
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.cmd -o install.cmd && install.cmd
+```
+
+安裝指令碼會下載適合你這台電腦的發布版本，比對公布的校驗和，把它加進 PATH，
+然後就結束了。它不會建立保險庫，也不會問你任何問題。開一個新終端機，然後：
+
+```bash
+neko-auth init
+```
+
+把指令碼用管線交給 shell，等於執行那個網址回傳的任何東西，所以你想先讀一遍也
+完全合理 —— [install.sh](install.sh) 大約一百行。`NEKO_AUTH_INSTALL_DIR` 可以
+改安裝位置，`NEKO_AUTH_NO_PATH=1` 則讓它不要動你的 shell 啟動檔案。
+
+### 從原始碼建置
+
+```bash
+cargo install --git https://github.com/zoefix/neko-auth
+```
+
+產物是一個靜態執行檔，沒有執行時相依；SQLite 是編譯進去的。如果不想要 QR code
+圖片解碼（它會引入 `image`，一大片解析程式碼面）和自動更新：
 
 ```bash
 cargo build --release --no-default-features

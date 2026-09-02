@@ -101,21 +101,46 @@ accounts in that vault are gone permanently. Make an encrypted backup.
 
 ## Install
 
-```bash
-cargo install --path .
-```
-
-Or build a binary:
+**macOS, Linux, WSL:**
 
 ```bash
-cargo build --release
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-The vault is one static binary with no runtime dependencies; SQLite is compiled
-in.
+**Windows PowerShell:**
 
-To build without the QR-image decoder (which pulls in the `image` crate, a
-large parsing surface) and without the updater:
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
+
+**Windows CMD:**
+
+```
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.cmd -o install.cmd && install.cmd
+```
+
+The installer downloads the release build for your machine, checks it against
+the published checksums, puts it on your PATH, and stops. It creates no vault
+and asks for nothing. Open a new terminal, then:
+
+```bash
+neko-auth init
+```
+
+Piping a script into a shell runs whatever that URL serves, so read it first if
+you would rather — [install.sh](install.sh) is about a hundred lines.
+`NEKO_AUTH_INSTALL_DIR` changes where the binary goes and `NEKO_AUTH_NO_PATH=1`
+leaves your shell startup files alone.
+
+### From source
+
+```bash
+cargo install --git https://github.com/zoefix/neko-auth
+```
+
+The result is one static binary with no runtime dependencies; SQLite is
+compiled in. To build without the QR-image decoder (which pulls in the `image`
+crate, a large parsing surface) and without the updater:
 
 ```bash
 cargo build --release --no-default-features

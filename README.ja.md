@@ -99,20 +99,46 @@ stable Rust で得られる最強の保証です。それでもレジスタへ�
 
 ## インストール
 
-```bash
-cargo install --path .
-```
-
-あるいは実行ファイルだけをビルドする場合:
+**macOS・Linux・WSL:**
 
 ```bash
-cargo build --release
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-保管庫は実行時依存のない単一の静的バイナリで、SQLite は組み込まれています。
+**Windows PowerShell:**
 
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
+
+**Windows CMD:**
+
+```
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.cmd -o install.cmd && install.cmd
+```
+
+インストーラーはこのマシン向けのリリースビルドをダウンロードし、公開されて
+いるチェックサムと照合し、PATH に追加して終了します。保管庫は作らず、何も
+尋ねません。新しいターミナルを開いて:
+
+```bash
+neko-auth init
+```
+
+スクリプトをシェルにパイプするのは、その URL が返すものを何であれ実行すると
+いうことなので、先に読みたければそのほうが妥当です ——
+[install.sh](install.sh) はおよそ百行です。`NEKO_AUTH_INSTALL_DIR` で配置先を
+変えられ、`NEKO_AUTH_NO_PATH=1` を付けるとシェルの起動ファイルに触れません。
+
+### ソースからビルドする
+
+```bash
+cargo install --git https://github.com/zoefix/neko-auth
+```
+
+できあがるのは実行時依存のない単一の静的バイナリで、SQLite は組み込まれます。
 QR 画像のデコード（`image` という大きな解析コードを引き込みます）と自動更新を
-外したい場合:
+外す場合:
 
 ```bash
 cargo build --release --no-default-features

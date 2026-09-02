@@ -6,12 +6,17 @@
 # bytes arrived intact from whoever served them; the signature is what still
 # holds if this repository's account is compromised.
 #
-# Required repository secrets:
+# Optional repository secrets:
 #   RELEASE_SIGNING_KEY  — Ed25519 private key, 64 hex characters
 #   RELEASE_PUBLIC_KEY   — the matching public key, 64 hex characters
 #
 # The public key is compiled into the binary, so a release signed with a
 # different key will be rejected by the copies already installed.
+#
+# Without them the release still builds and publishes, with checksums but no
+# signature. `install.sh` says so and continues; `neko-auth update` refuses to
+# install an unverifiable binary, which is the stricter and correct behaviour
+# for something that replaces itself.
 
 name: Release
 
@@ -69,7 +74,7 @@ jobs:
           else
             cp "target/${{ matrix.target }}/release/neko-auth" "$staging/"
           fi
-          cp README.md "$staging/"
+          cp README.md LICENSE "$staging/"
           tar -czf "$name.tar.gz" -C "$(dirname "$staging")" "$name"
 
       - uses: actions/upload-artifact@v5
@@ -81,6 +86,11 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    # Mapped to env at the job level because the `secrets` context is not
+    # dependable inside a step-level `if`, while `env` is.
+    env:
+      SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+      PUBLIC_KEY: ${{ secrets.RELEASE_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
@@ -97,14 +107,13 @@ jobs:
           cat SHA256SUMS
 
       - name: Install the signing library
+        if: env.SIGNING_KEY != ''
         run: pip install --disable-pip-version-check "cryptography>=42"
 
       - name: Sign the checksums
-        env:
-          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        if: env.SIGNING_KEY != ''
         run: |
           set -euo pipefail
-          test -n "$SIGNING_KEY" || { echo "RELEASE_SIGNING_KEY is not set"; exit 1; }
           python3 - <<'PY'
           import os
           from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -113,9 +122,10 @@ jobs:
           open("artifacts/SHA256SUMS.sig", "w").write(key.sign(message).hex())
           PY
 
+      # Verified here against the public key that was compiled into the
+      # binaries, so a mismatched pair is caught before anyone downloads it.
       - name: Verify what we are about to publish
-        env:
-          PUBLIC_KEY: ${{ secrets.RELEASE_PUBLIC_KEY }}
+        if: env.SIGNING_KEY != ''
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -128,7 +138,19 @@ jobs:
           )
           print("signature verifies against the published public key")
           PY
-          cd artifacts && sha256sum -c SHA256SUMS
+
+      - name: Check the checksums against the files
+        run: cd artifacts && sha256sum -c SHA256SUMS
+
+      - name: Note an unsigned release
+        if: env.SIGNING_KEY == ''
+        run: |
+          echo "::warning::RELEASE_SIGNING_KEY is not set; publishing with checksums but no signature."
+          # Single-quoted: backticks inside a double-quoted string would be
+          # run as a command substitution.
+          echo 'RELEASE_SIGNING_KEY is not set, so this release is unsigned.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'install.sh will proceed on the checksum alone; `neko-auth update` will refuse it.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Set the secret and re-tag to publish a signed build.' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -136,4 +158,5 @@ jobs:
             artifacts/*.tar.gz
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.sig
+          fail_on_unmatched_files: false
           generate_release_notes: true

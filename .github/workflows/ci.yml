@@ -32,6 +32,33 @@ jobs:
       - name: Test the minimal build
         run: cargo test --all-targets --no-default-features
 
+  # The installers are the first thing a new user runs, and they are the one
+  # part of this repository that never gets compiled. Each is at least parsed
+  # on the platform it targets.
+  installers:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check install.sh
+        if: runner.os == 'Linux'
+        run: |
+          sh -n install.sh
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --shell=sh install.sh
+      - name: Check install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path install.ps1), [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { $_.ToString() }; exit 1 }
+          Write-Host "install.ps1 parses"
+
   lint:
     runs-on: ubuntu-latest
     steps:
