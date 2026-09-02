@@ -1,6 +1,23 @@
+<div align="center">
+
 # neko-auth
 
-A TOTP authenticator that lives entirely on your own machine.
+---
+
+Two-factor codes that never leave your machine. A command-line authenticator
+with an encrypted local vault, unlocked by an email and a password that are
+stored nowhere.
+
+[English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
+
+![Version](https://img.shields.io/badge/VERSION-v0.1.0-8A2BE2?style=for-the-badge&labelColor=444)
+![Platform](https://img.shields.io/badge/PLATFORM-MACOS%20%7C%20LINUX%20%7C%20WINDOWS-00B5E2?style=for-the-badge&labelColor=444)
+![Rust](https://img.shields.io/badge/RUST-1.82%2B-000000?style=for-the-badge&labelColor=444)
+![Licence](https://img.shields.io/badge/LICENCE-MIT-F5A623?style=for-the-badge&labelColor=444)
+
+</div>
+
+## What this is
 
 Two-factor secrets go into a local, encrypted SQLite vault. Nothing is synced,
 nothing is uploaded, and there is no account to sign in to. The only command
