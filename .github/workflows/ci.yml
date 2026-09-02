@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
@@ -35,7 +35,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -44,10 +44,18 @@ jobs:
       - run: cargo clippy --all-targets --all-features
       - run: cargo clippy --all-targets --no-default-features
 
+  # cargo-audit is run directly rather than through rustsec/audit-check: that
+  # action reports by creating a check run, which needs `checks: write` on the
+  # workflow token and fails the job outright when the repository does not
+  # grant it. Running the tool prints the same findings and needs no token.
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked
+      # --deny warnings also fails on unmaintained and unsound advisories, not
+      # just on vulnerabilities. The tree is clean of all three today, and this
+      # is what keeps it that way.
+      - run: cargo audit --deny warnings

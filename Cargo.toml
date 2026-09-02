@@ -48,8 +48,8 @@ clap = { version = "4.5", features = ["derive"] }
 # default-features off drops `with-file-history`, so the crate is not merely
 # configured never to write a history file — it cannot.
 rustyline = { version = "15.0", default-features = false, features = ["derive", "custom-bindings"] }
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = "0.30"
+crossterm = "0.29"
 
 # --- optional ---
 rqrr = { version = "0.11", optional = true }

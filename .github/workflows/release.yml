@@ -40,7 +40,7 @@ jobs:
           - { os: macos-13,       target: x86_64-apple-darwin }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -72,7 +72,7 @@ jobs:
           cp README.md "$staging/"
           tar -czf "$name.tar.gz" -C "$(dirname "$staging")" "$name"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: neko-auth-${{ matrix.target }}
           path: neko-auth-${{ matrix.target }}.tar.gz
@@ -82,8 +82,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
           merge-multiple: true

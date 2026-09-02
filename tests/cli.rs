@@ -442,12 +442,16 @@ fn the_interface_language_follows_the_locale_and_the_flag() {
         .success()
         .stdout(contains("发行方").and(contains("帳號").not()));
 
-    // With no flag, the locale environment decides.
+    // With no flag, the locale environment decides. LC_ALL and LC_MESSAGES
+    // have to be cleared as well: POSIX has them override LANG, CI runners set
+    // them, and the program is right to follow that order.
     Command::cargo_bin("neko-auth")
         .unwrap()
         .env("NEKO_AUTH_HOME", dir.path())
         .env("NO_COLOR", "1")
         .env("LANG", "ja_JP.UTF-8")
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
         .arg("ls")
         .write_stdin(unlock_input())
         .assert()
