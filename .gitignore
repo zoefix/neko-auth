@@ -1,0 +1,6 @@
+/target
+
+# Never commit a vault or a backup, even by accident.
+vault.db
+vault.db-*
+*.nekobak

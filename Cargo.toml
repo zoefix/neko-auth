@@ -1,0 +1,83 @@
+[package]
+name = "neko-auth"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "Fully offline, local-only TOTP authenticator with an encrypted vault"
+license = "MIT"
+
+[[bin]]
+name = "neko-auth"
+path = "src/main.rs"
+
+[features]
+default = ["qr", "update", "clipboard"]
+# QR image decoding pulls in `image`, a large parsing surface. Opt out with
+# --no-default-features to build a binary that never parses an image file.
+qr = ["dep:rqrr", "dep:image"]
+update = ["dep:ureq", "dep:ed25519-dalek", "dep:flate2", "dep:tar", "dep:semver", "dep:self-replace"]
+clipboard = ["dep:arboard"]
+
+[dependencies]
+# --- storage ---
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+# --- crypto (all pinned to the digest 0.10 / crypto-common 0.1 generation) ---
+argon2 = { version = "0.5.3", default-features = false, features = ["alloc", "password-hash", "zeroize"] }
+chacha20poly1305 = "0.10.1"
+hkdf = "0.12"
+sha2 = "0.10"
+hmac = "0.12"
+sha1 = "0.10"
+subtle = "2.6"
+zeroize = { version = "1.8", features = ["derive"] }
+secrecy = "0.10"
+getrandom = "0.2"
+
+# --- encoding / errors / fs ---
+data-encoding = "2.6"
+thiserror = "2.0"
+anyhow = "1.0"
+tempfile = "3.14"
+dirs = "6.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+# --- terminal ---
+clap = { version = "4.5", features = ["derive"] }
+# default-features off drops `with-file-history`, so the crate is not merely
+# configured never to write a history file — it cannot.
+rustyline = { version = "15.0", default-features = false, features = ["derive", "custom-bindings"] }
+ratatui = "0.29"
+crossterm = "0.28"
+
+# --- optional ---
+rqrr = { version = "0.11", optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"], optional = true }
+arboard = { version = "3.4", optional = true }
+ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "json"], optional = true }
+ed25519-dalek = { version = "2.1", optional = true }
+flate2 = { version = "1.0", optional = true }
+tar = { version = "0.4", optional = true }
+semver = { version = "1.0", optional = true }
+# Handles the Windows case where a running .exe cannot simply be overwritten.
+self-replace = { version = "1.5", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "0.38", features = ["process", "fs"] }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+# Encoder only, for the QR round-trip test. default-features off keeps it from
+# pinning its own copy of `image`.
+qrcode = { version = "0.14", default-features = false }
+# The CLI tests poke at the raw database to simulate corruption.
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[profile.release]
+# NOTE: deliberately NOT panic = "abort". Aborting skips unwinding, which skips
+# Drop, which skips every zeroize. Unwinding is what erases key material.
+lto = true
+codegen-units = 1
+strip = true

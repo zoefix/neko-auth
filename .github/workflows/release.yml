@@ -1,0 +1,139 @@
+# Builds every supported target, then publishes the archives together with a
+# SHA256SUMS file and an Ed25519 signature over it.
+#
+# `neko-auth update` verifies the signature before the checksum, and refuses to
+# install anything it cannot verify. A checksum alone would only prove the
+# bytes arrived intact from whoever served them; the signature is what still
+# holds if this repository's account is compromised.
+#
+# Required repository secrets:
+#   RELEASE_SIGNING_KEY  — Ed25519 private key, 64 hex characters
+#   RELEASE_PUBLIC_KEY   — the matching public key, 64 hex characters
+#
+# The public key is compiled into the binary, so a release signed with a
+# different key will be rejected by the copies already installed.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest,   target: aarch64-apple-darwin }
+          - { os: macos-13,       target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        shell: bash
+        env:
+          # Baked in so an installed copy knows where to look and whose
+          # signature to trust.
+          NEKO_AUTH_REPO: ${{ github.repository }}
+          NEKO_AUTH_UPDATE_PUBKEY: ${{ secrets.RELEASE_PUBLIC_KEY }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # tar.gz on every platform, Windows included: the updater unpacks the
+      # archive itself, so there is no reason to carry a second format.
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="neko-auth-${{ matrix.target }}"
+          staging="$(mktemp -d)/$name"
+          mkdir -p "$staging"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "target/${{ matrix.target }}/release/neko-auth.exe" "$staging/"
+          else
+            cp "target/${{ matrix.target }}/release/neko-auth" "$staging/"
+          fi
+          cp README.md "$staging/"
+          tar -czf "$name.tar.gz" -C "$(dirname "$staging")" "$name"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neko-auth-${{ matrix.target }}
+          path: neko-auth-${{ matrix.target }}.tar.gz
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          # Bare filenames, matching what the updater looks up.
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Install the signing library
+        run: pip install --disable-pip-version-check "cryptography>=42"
+
+      - name: Sign the checksums
+        env:
+          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SIGNING_KEY" || { echo "RELEASE_SIGNING_KEY is not set"; exit 1; }
+          python3 - <<'PY'
+          import os
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(os.environ["SIGNING_KEY"]))
+          message = open("artifacts/SHA256SUMS", "rb").read()
+          open("artifacts/SHA256SUMS.sig", "w").write(key.sign(message).hex())
+          PY
+
+      - name: Verify what we are about to publish
+        env:
+          PUBLIC_KEY: ${{ secrets.RELEASE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+          key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(os.environ["PUBLIC_KEY"]))
+          key.verify(
+              bytes.fromhex(open("artifacts/SHA256SUMS.sig").read().strip()),
+              open("artifacts/SHA256SUMS", "rb").read(),
+          )
+          print("signature verifies against the published public key")
+          PY
+          cd artifacts && sha256sum -c SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS
+            artifacts/SHA256SUMS.sig
+          generate_release_notes: true
