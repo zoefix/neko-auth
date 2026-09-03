@@ -1,6 +1,6 @@
 <div align="center">
 
-# neko-auth
+# Neko Auth
 
 ---
 
