@@ -9,6 +9,8 @@ pub mod watch;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use std::io::IsTerminal;
+
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -16,6 +18,9 @@ use rustyline::hint::Hinter;
 use rustyline::history::MemHistory;
 use rustyline::{CompletionType, Config, Context, Editor};
 use rustyline::{Helper, Validator};
+
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::ExecutableCommand;
 
 use crate::app::App;
 use crate::i18n::{self, Language};
@@ -66,6 +71,13 @@ const TAKES_ACCOUNT: &[&str] = &["get", "rm", "remove", "rename", "show", "revea
 const LANGUAGE_CODES: &[&str] = &["auto", "en", "zh-Hans", "zh-Hant", "ja"];
 
 pub fn run(mut app: App) -> Result<()> {
+    // Everything the session prints — issuer names, account names, codes —
+    // goes on the terminal's alternate screen, so `exit` takes it with it.
+    // Otherwise the account list stays in the scrollback of a terminal anyone
+    // can scroll back through, which is exactly the metadata the in-memory
+    // history was there to keep out of reach.
+    let private_screen = PrivateScreen::enter(&app.config);
+
     banner(&app);
 
     let config = Config::builder()
@@ -134,8 +146,39 @@ pub fn run(mut app: App) -> Result<()> {
     }
 
     app.vault.close();
+    // Dropped before the closing line, so that line lands on the terminal the
+    // user is left looking at rather than on the screen being discarded.
+    drop(private_screen);
     println!("{}", ui::dim(&i18n::locked_goodbye()));
     Ok(())
+}
+
+/// Runs the session on the terminal's alternate screen, restoring whatever was
+/// there when it drops.
+///
+/// Deliberately not a screen-clear on exit: `\x1b[3J` would erase the whole
+/// scrollback, including everything the user had before neko-auth started.
+/// The alternate screen only ever hides what this program itself drew.
+struct PrivateScreen {
+    active: bool,
+}
+
+impl PrivateScreen {
+    fn enter(config: &crate::config::Config) -> Self {
+        // Nothing to hide when output is a pipe or a file, and switching
+        // screens would only inject escape sequences into it.
+        let wanted = !config.keep_scrollback && std::io::stdout().is_terminal();
+        let active = wanted && std::io::stdout().execute(EnterAlternateScreen).is_ok();
+        PrivateScreen { active }
+    }
+}
+
+impl Drop for PrivateScreen {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = std::io::stdout().execute(LeaveAlternateScreen);
+        }
+    }
 }
 
 enum Flow {
@@ -169,7 +212,8 @@ fn dispatch(app: &mut App, words: &[String]) -> Result<Flow> {
         }
         "watch" => {
             app.ensure_unlocked()?;
-            watch::run(app, args.first().copied())?;
+            // The session already owns the alternate screen.
+            watch::run(app, args.first().copied(), false)?;
         }
         "add" => app.add()?,
         "import" => match args.first().copied() {
@@ -473,6 +517,30 @@ impl Completer for NekoHelper {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Redirected output must not be given screen-switching escapes.
+    ///
+    /// `cargo test` captures stdout, so this exercises exactly the non-terminal
+    /// path: piping `ls` into a file should produce the listing and nothing
+    /// else.
+    #[test]
+    fn a_pipe_is_left_alone() {
+        let config = crate::config::Config::default();
+        assert!(!config.keep_scrollback, "the private screen is the default");
+        let screen = PrivateScreen::enter(&config);
+        assert!(
+            !screen.active,
+            "stdout is not a terminal here, so no screen switch may happen"
+        );
+    }
+
+    #[test]
+    fn the_private_screen_can_be_turned_off() {
+        let mut config = crate::config::Config::default();
+        config.set("keep_scrollback", "true").unwrap();
+        assert!(config.keep_scrollback);
+        assert!(!PrivateScreen::enter(&config).active);
+    }
 
     #[test]
     fn quoted_arguments_stay_together() {

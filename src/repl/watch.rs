@@ -9,9 +9,10 @@ use std::io::Stdout;
 use std::time::Duration;
 
 use anyhow::Result;
+use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::{execute, ExecutableCommand};
 use ratatui::prelude::*;
@@ -25,14 +26,25 @@ use crate::vault::Account;
 const TICK: Duration = Duration::from_millis(250);
 
 /// Restores the terminal on every exit path, panics included.
-struct TerminalGuard;
+///
+/// `owns_screen` records whether this view switched to the alternate screen
+/// itself. When the interactive session is already running on it, switching
+/// again would end up leaving it one level too early and spilling the rest of
+/// the session onto the primary screen — the very thing the session is on the
+/// alternate screen to avoid.
+struct TerminalGuard {
+    owns_screen: bool,
+}
 
 impl TerminalGuard {
-    fn enter() -> Result<Terminal<CrosstermBackend<Stdout>>> {
+    fn enter(owns_screen: bool) -> Result<(Self, Terminal<CrosstermBackend<Stdout>>)> {
         enable_raw_mode()?;
         let mut stdout = std::io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
-        Ok(Terminal::new(CrosstermBackend::new(stdout))?)
+        if owns_screen {
+            execute!(stdout, EnterAlternateScreen)?;
+        }
+        let guard = TerminalGuard { owns_screen };
+        Ok((guard, Terminal::new(CrosstermBackend::new(stdout))?))
     }
 }
 
@@ -41,7 +53,14 @@ impl Drop for TerminalGuard {
         // Without this, a panic inside the alternate screen leaves the user's
         // terminal in raw mode with no echo — effectively broken until reset.
         let _ = disable_raw_mode();
-        let _ = std::io::stdout().execute(LeaveAlternateScreen);
+        let mut stdout = std::io::stdout();
+        if self.owns_screen {
+            let _ = stdout.execute(LeaveAlternateScreen);
+        } else {
+            // Already on the session's alternate screen: wipe what was drawn
+            // so the prompt comes back to a clean one.
+            let _ = execute!(stdout, Clear(ClearType::All), MoveTo(0, 0));
+        }
     }
 }
 
@@ -51,15 +70,14 @@ struct Cached {
     expires_at: u64,
 }
 
-pub fn run(app: &mut App, pattern: Option<&str>) -> Result<()> {
+pub fn run(app: &mut App, pattern: Option<&str>, owns_screen: bool) -> Result<()> {
     let mut filter = pattern.unwrap_or("").to_string();
     let mut editing_filter = false;
     let mut state = TableState::default();
     let mut codes: HashMap<[u8; 16], Cached> = HashMap::new();
     let mut status = String::new();
 
-    let _guard = TerminalGuard;
-    let mut terminal = TerminalGuard::enter()?;
+    let (_guard, mut terminal) = TerminalGuard::enter(owns_screen)?;
 
     loop {
         // The idle watchdog can erase the keys while this view is open.

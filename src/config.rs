@@ -40,6 +40,15 @@ pub struct Config {
     _obsolete_group_digits: Option<bool>,
     /// `auto`, `en`, `zh-Hans`, `zh-Hant`, or `ja`.
     pub language: String,
+    /// Leave the session's output in the terminal after `exit`.
+    ///
+    /// Off by default. The interactive session runs on the terminal's
+    /// alternate screen, so issuer and account names — which say which
+    /// services you hold accounts with — do not sit in the scrollback of a
+    /// terminal anyone can later scroll back through. Turning this on keeps
+    /// the old behaviour, and the scrollback with it.
+    pub keep_scrollback: bool,
+
     /// Hide the email as it is typed, the way the password always is.
     ///
     /// Off by default: the address is never written to the vault either way,
@@ -59,6 +68,7 @@ impl Default for Config {
             // Follows the locale environment, which is what someone who never
             // opens this file will get.
             language: "auto".to_string(),
+            keep_scrollback: false,
             hide_email: false,
         }
     }
@@ -139,6 +149,7 @@ impl Config {
             }
             "update_repo" => self.update_repo = value.to_string(),
             "hide_email" => self.hide_email = value.parse()?,
+            "keep_scrollback" => self.keep_scrollback = value.parse()?,
             other => anyhow::bail!("{}", i18n::unknown_setting(other)),
         }
         Ok(())
@@ -158,6 +169,7 @@ impl Config {
             ("update_repo", self.update_repo().to_string()),
             ("language", self.language.clone()),
             ("hide_email", self.hide_email.to_string()),
+            ("keep_scrollback", self.keep_scrollback.to_string()),
         ]
     }
 }

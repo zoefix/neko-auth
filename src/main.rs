@@ -113,7 +113,8 @@ fn dispatch(app: &mut App, command: Command) -> Result<()> {
         // clear the clipboard afterwards, and on X11 and Wayland it has to
         // stay alive for the paste to work at all.
         Command::Get { name, copy } => app.get(&name, copy, true),
-        Command::Watch { pattern } => repl::watch::run(app, pattern.as_deref()),
+        // One-shot: nothing else owns the screen, so this view takes it.
+        Command::Watch { pattern } => repl::watch::run(app, pattern.as_deref(), true),
         Command::Add => app.add(),
         Command::Import { source } => match source {
             ImportSource::Uri { uri } => app.import_uri(uri.as_deref()),

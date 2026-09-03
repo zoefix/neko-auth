@@ -238,6 +238,10 @@ pub fn install_panic_hook() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = terminal::disable_raw_mode();
+        // A panic on the alternate screen would otherwise leave the user
+        // staring at a blank one with their shell hidden behind it.
+        use crossterm::ExecutableCommand;
+        let _ = std::io::stdout().execute(terminal::LeaveAlternateScreen);
         if backtrace_requested {
             default_hook(info);
         } else {

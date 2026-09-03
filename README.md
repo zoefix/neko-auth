@@ -174,8 +174,12 @@ Typing `/` lists the commands straight away, and narrows as you keep typing — 
 leaves `rename reveal restore`. A leading `/` is accepted on every command, so
 `/help` works as well as `help`.
 
-In the session, Tab completes commands and account names, and history is kept
-**in memory only**. `show coinbase` is itself sensitive — it says which services
+The session runs on the terminal's alternate screen, so `exit` takes its output
+with it — the account list does not stay in the scrollback of a terminal anyone
+can later scroll back through. `config keep_scrollback true` turns that off.
+
+Tab completes commands and account names, and history is kept **in memory
+only**. `show coinbase` is itself sensitive — it says which services
 you have accounts with — and has no business outliving the session.
 
 ### Backups
