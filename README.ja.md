@@ -10,7 +10,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-![Version](https://img.shields.io/badge/VERSION-v0.1.1-8A2BE2?style=for-the-badge&labelColor=444)
+![Version](https://img.shields.io/badge/VERSION-v0.1.2-8A2BE2?style=for-the-badge&labelColor=444)
 ![Platform](https://img.shields.io/badge/PLATFORM-MACOS%20%7C%20LINUX%20%7C%20WINDOWS-00B5E2?style=for-the-badge&labelColor=444)
 ![Rust](https://img.shields.io/badge/RUST-1.82%2B-000000?style=for-the-badge&labelColor=444)
 ![Licence](https://img.shields.io/badge/LICENCE-MIT-F5A623?style=for-the-badge&labelColor=444)
@@ -30,10 +30,10 @@ $ neko-auth
 メールアドレス: zoe@example.com
 マスターパスワード:
 
-neko-auth 0.1.0
+neko-auth 0.1.2
 保管庫: ~/.local/share/neko-auth/vault.db
 300 秒操作がないと自動でロックします
-`help` でコマンド一覧、`exit` で終了
+/ でコマンド一覧、`exit` で終了
 
 neko-auth › get github
 GitHub (zoe@example.com)
