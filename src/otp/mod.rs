@@ -333,8 +333,10 @@ mod tests {
     }
 
     #[test]
-    fn grouping_splits_evenly() {
-        assert_eq!(Code("123456".into()).grouped(), "123 456");
-        assert_eq!(Code("12345678".into()).grouped(), "1234 5678");
+    fn a_code_is_only_ever_digits() {
+        // Shown as-is everywhere, so anything but digits would be dragged into
+        // whatever the user pastes it into.
+        let code = totp(b"12345678901234567890", 59, 30, Algorithm::Sha1, 8).unwrap();
+        assert!(code.as_str().chars().all(|c| c.is_ascii_digit()), "{code}");
     }
 }

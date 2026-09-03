@@ -170,7 +170,7 @@ fn build_rows(
             codes.insert(
                 account.uuid,
                 Cached {
-                    code: code.grouped(),
+                    code: code.as_str().to_string(),
                     expires_at,
                 },
             );
@@ -312,9 +312,7 @@ fn copy_selected(
     let Some(cached) = codes.get(&account.uuid) else {
         return String::new();
     };
-    // Copy the digits, not the grouped form: nobody wants a space pasted into
-    // a six-character input.
-    let plain: String = cached.code.chars().filter(|c| !c.is_whitespace()).collect();
+    let plain = cached.code.clone();
     match crate::clipboard::copy_transient(&plain, app.config.clipboard_timeout(), false) {
         Ok(()) => match app.config.clipboard_timeout() {
             Some(t) => i18n::copied_named(&account.display(), t.as_secs()),

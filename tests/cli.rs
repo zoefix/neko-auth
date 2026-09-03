@@ -72,13 +72,17 @@ fn a_vault_is_created_populated_listed_and_emptied() {
         .success()
         .stdout(contains("GitHub").and(contains("zoe@example.com")));
 
-    // The code is six digits, and the countdown is shown alongside it.
+    // Six digits in one run, with no space to strip out after copying.
     neko(dir.path())
         .args(["get", "github"])
         .write_stdin(unlock_input())
         .assert()
         .success()
-        .stdout(predicates::str::is_match(r"\d{3} \d{3}").unwrap());
+        .stdout(
+            predicates::str::is_match(r"\b\d{6}\b")
+                .unwrap()
+                .and(predicates::str::is_match(r"\d{3} \d{3}").unwrap().not()),
+        );
 
     neko(dir.path())
         .args(["rm", "github"])
@@ -654,8 +658,9 @@ fn listing_shows_live_codes_rather_than_parameters() {
         // A grouped six-digit code, a shared countdown, and no trace of the
         // parameter column it replaced.
         .stdout(
-            predicates::str::is_match(r"\d{3} \d{3}")
+            predicates::str::is_match(r"\b\d{6}\b")
                 .unwrap()
+                .and(predicates::str::is_match(r"\d{3} \d{3}").unwrap().not())
                 .and(contains("refreshes in"))
                 .and(contains("TOTP 6d/30s/SHA1").not()),
         );
@@ -716,7 +721,7 @@ fn one_damaged_account_does_not_take_out_the_whole_listing() {
             contains("AWS")
                 .and(contains("GitHub"))
                 .and(contains("??????"))
-                .and(predicates::str::is_match(r"\d{3} \d{3}").unwrap()),
+                .and(predicates::str::is_match(r"\b\d{6}\b").unwrap()),
         )
         .stderr(contains("doctor"));
 }

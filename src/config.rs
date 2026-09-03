@@ -28,8 +28,16 @@ pub struct Config {
     pub kdf_profile: String,
     /// `owner/repo` to check for updates. Only ever contacted by `update`.
     pub update_repo: String,
-    /// Group codes as `123 456` when printing.
-    pub group_digits: bool,
+    /// Accepted but unused.
+    ///
+    /// Codes were once printed as `123 456`. Selecting one with the mouse then
+    /// copied the space as well, which had to be removed by hand before it
+    /// could be pasted anywhere — so codes are now printed as plain digits.
+    /// The field is still parsed, because `deny_unknown_fields` would
+    /// otherwise refuse to load a file written by an older version, and it is
+    /// dropped the next time the file is written.
+    #[serde(default, rename = "group_digits", skip_serializing)]
+    _obsolete_group_digits: Option<bool>,
     /// `auto`, `en`, `zh-Hans`, `zh-Hant`, or `ja`.
     pub language: String,
     /// Hide the email as it is typed, the way the password always is.
@@ -47,7 +55,7 @@ impl Default for Config {
             clipboard_clear_seconds: 15,
             kdf_profile: "moderate".to_string(),
             update_repo: DEFAULT_UPDATE_REPO.to_string(),
-            group_digits: true,
+            _obsolete_group_digits: None,
             // Follows the locale environment, which is what someone who never
             // opens this file will get.
             language: "auto".to_string(),
@@ -87,6 +95,18 @@ impl Config {
             .then(|| Duration::from_secs(self.clipboard_clear_seconds))
     }
 
+    /// Where `update` looks, ignoring the placeholder older versions saved.
+    ///
+    /// 0.1.0 wrote the build-time default into the file verbatim, so a config
+    /// from then pins `update` to a repository that does not exist.
+    pub fn update_repo(&self) -> &str {
+        if self.update_repo.starts_with("OWNER/") {
+            DEFAULT_UPDATE_REPO
+        } else {
+            &self.update_repo
+        }
+    }
+
     pub fn language(&self) -> Language {
         i18n::resolve(&self.language)
     }
@@ -118,7 +138,6 @@ impl Config {
                 i18n::set_current(language);
             }
             "update_repo" => self.update_repo = value.to_string(),
-            "group_digits" => self.group_digits = value.parse()?,
             "hide_email" => self.hide_email = value.parse()?,
             other => anyhow::bail!("{}", i18n::unknown_setting(other)),
         }
@@ -133,8 +152,10 @@ impl Config {
                 self.clipboard_clear_seconds.to_string(),
             ),
             ("kdf_profile", self.kdf_profile.clone()),
-            ("update_repo", self.update_repo.clone()),
-            ("group_digits", self.group_digits.to_string()),
+            // The effective value, not the stored one: a config from 0.1.0 holds
+            // a placeholder that is ignored, and listing it would describe a
+            // setting that is not in force.
+            ("update_repo", self.update_repo().to_string()),
             ("language", self.language.clone()),
             ("hide_email", self.hide_email.to_string()),
         ]
@@ -216,6 +237,54 @@ mod tests {
         // `auto` resolves against the environment and must never fail.
         assert!(parse_language_setting("auto").is_ok());
         assert!(parse_language_setting("klingon").is_err());
+    }
+
+    #[test]
+    fn a_config_written_by_an_older_version_still_loads() {
+        // `group_digits` is gone, and deny_unknown_fields would otherwise
+        // refuse the file outright — locking the user out of their own vault
+        // over a setting that no longer exists.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(
+            &path,
+            "idle_lock_seconds = 300\ngroup_digits = true\nlanguage = \"ja\"\n",
+        )
+        .unwrap();
+
+        let cfg = Config::load(&path).unwrap();
+        assert_eq!(cfg.language, "ja");
+        // And it is not written back out.
+        cfg.save(&path).unwrap();
+        assert!(!std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("group_digits"));
+    }
+
+    #[test]
+    fn the_placeholder_update_repo_is_ignored() {
+        // 0.1.0 saved the build-time placeholder verbatim, which would pin
+        // `update` to a repository that does not exist.
+        let stale = Config {
+            update_repo: "OWNER/neko-auth".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(stale.update_repo(), DEFAULT_UPDATE_REPO);
+
+        let forked = Config {
+            update_repo: "someone/their-fork".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(forked.update_repo(), "someone/their-fork");
+
+        // `config` must list what is in force, not the ignored placeholder.
+        let listed = stale
+            .entries()
+            .into_iter()
+            .find(|(k, _)| *k == "update_repo")
+            .map(|(_, v)| v)
+            .unwrap();
+        assert_eq!(listed, DEFAULT_UPDATE_REPO);
     }
 
     #[test]

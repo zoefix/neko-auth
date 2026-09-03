@@ -37,7 +37,7 @@ type `help` for commands, `exit` to leave
 
 neko-auth › get github
 GitHub (zoe@example.com)
-  123 456   █████████░░░ 22s
+  123456   █████████░░░ 22s
 ```
 
 ---

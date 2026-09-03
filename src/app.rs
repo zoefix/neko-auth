@@ -243,11 +243,7 @@ impl App {
     fn code_for(&self, account: &Account, now: u64) -> Option<String> {
         let secret = self.vault.secret_of(account).ok()?;
         let code = otp::generate(&secret, &account.params, now).ok()?;
-        Some(if self.config.group_digits {
-            code.grouped()
-        } else {
-            code.as_str().to_string()
-        })
+        Some(code.as_str().to_string())
     }
 
     pub fn get(&mut self, needle: &str, copy: bool, block: bool) -> Result<()> {
@@ -257,11 +253,7 @@ impl App {
         let code = otp::generate(&secret, &account.params, otp::now())?;
         drop(secret);
 
-        let shown = if self.config.group_digits {
-            code.grouped()
-        } else {
-            code.as_str().to_string()
-        };
+        let shown = code.as_str().to_string();
 
         println!("{}", ui::bold(&account.display()));
         match account.params.kind {

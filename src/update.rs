@@ -53,7 +53,7 @@ struct Asset {
 }
 
 pub fn run(config: &Config, check_only: bool) -> Result<()> {
-    let repo = config.update_repo.trim();
+    let repo = config.update_repo().trim();
     if repo.is_empty() || repo.starts_with("OWNER/") {
         bail!("{}", i18n::update_no_repo());
     }

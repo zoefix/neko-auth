@@ -37,7 +37,7 @@ neko-auth 0.1.0
 
 neko-auth › get github
 GitHub (zoe@example.com)
-  123 456   █████████░░░ 22 秒
+  123456   █████████░░░ 22 秒
 ```
 
 ---
