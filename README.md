@@ -170,7 +170,9 @@ Everything works both inside the session and as a one-shot command.
 | `lock` | erase the keys from memory now |
 | `update [--check]` | check for a new release (the only networked command) |
 
-A leading `/` is accepted on every command, so `/help` works as well as `help`.
+Typing `/` lists the commands straight away, and narrows as you keep typing — `/re`
+leaves `rename reveal restore`. A leading `/` is accepted on every command, so
+`/help` works as well as `help`.
 
 In the session, Tab completes commands and account names, and history is kept
 **in memory only**. `show coinbase` is itself sensitive — it says which services

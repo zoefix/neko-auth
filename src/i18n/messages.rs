@@ -824,10 +824,10 @@ messages! {
         ja: "{seconds} 秒操作がないと自動でロックします";
 
     fn banner_hint() =>
-        en: "type `help` for commands, `exit` to leave",
-        zh_hans: "输入 `help` 查看命令，`exit` 退出",
-        zh_hant: "輸入 `help` 查看指令，`exit` 離開",
-        ja: "`help` でコマンド一覧、`exit` で終了";
+        en: "press / to list commands, `exit` to leave",
+        zh_hans: "按 / 列出命令，`exit` 退出",
+        zh_hant: "按 / 列出指令，`exit` 離開",
+        ja: "/ でコマンド一覧、`exit` で終了";
 
     fn prompt_locked_suffix() =>
         en: "(locked)",

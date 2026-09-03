@@ -11,10 +11,11 @@ use std::path::PathBuf;
 use anyhow::Result;
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
-use rustyline::highlight::{CmdKind, Highlighter};
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
 use rustyline::history::MemHistory;
 use rustyline::{CompletionType, Config, Context, Editor};
-use rustyline::{Helper, Hinter, Validator};
+use rustyline::{Helper, Validator};
 
 use crate::app::App;
 use crate::i18n::{self, Language};
@@ -149,7 +150,8 @@ fn dispatch(app: &mut App, words: &[String]) -> Result<Flow> {
     let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
 
     match command {
-        "help" | "?" => print_help(),
+        // A bare `/` is the same question as `help`.
+        "help" | "?" | "" => print_help(),
         "exit" | "quit" => return Ok(Flow::Exit),
         "lock" => {
             app.vault.lock();
@@ -332,7 +334,7 @@ fn tokenize(line: &str) -> Vec<String> {
     words
 }
 
-#[derive(Helper, Hinter, Validator)]
+#[derive(Helper, Validator)]
 struct NekoHelper {
     accounts: Vec<String>,
     locked: bool,
@@ -371,10 +373,51 @@ impl Highlighter for NekoHelper {
         std::borrow::Cow::Owned(painted)
     }
 
-    // Colour is applied to the prompt only, and the prompt is redrawn on
-    // every keystroke anyway, so nothing else needs to trigger a repaint.
-    fn highlight_char(&self, _line: &str, _pos: usize, _kind: CmdKind) -> bool {
-        false
+    fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
+        if ui::colored() {
+            std::borrow::Cow::Owned(ui::dim(hint))
+        } else {
+            std::borrow::Cow::Borrowed(hint)
+        }
+    }
+}
+
+/// Shows the command list the moment `/` is typed.
+///
+/// A hint rather than a completion popup: rustyline's list completion only
+/// prints candidates on a *second* Tab, so no single keypress can produce the
+/// list through that route. A hint is recomputed after every keystroke and
+/// drawn straight after the cursor, which is what makes `/` feel like it opens
+/// a menu — and it narrows as more is typed.
+impl Hinter for NekoHelper {
+    type Hint = String;
+
+    fn hint(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> Option<String> {
+        // Only while typing at the end of the line, or the hint would appear
+        // in the middle of what is being edited.
+        if pos != line.len() {
+            return None;
+        }
+        let typed = line.strip_prefix('/')?;
+        // Once there is an argument, the command is settled and the list is
+        // just noise.
+        if typed.contains(char::is_whitespace) {
+            return None;
+        }
+
+        let matching: Vec<&str> = COMMAND_NAMES
+            .iter()
+            .copied()
+            .filter(|name| name.starts_with(typed))
+            .collect();
+
+        match matching.as_slice() {
+            [] => None,
+            // A single match completes itself rather than repeating what is
+            // already on screen.
+            [only] => (*only != typed).then(|| only[typed.len()..].to_string()),
+            names => Some(format!("   {}", names.join(" "))),
+        }
     }
 }
 
@@ -492,6 +535,76 @@ mod tests {
             // has to be stripped later.
             assert_eq!(painted, plain);
         }
+    }
+
+    fn hint_for(line: &str) -> Option<String> {
+        let helper = NekoHelper {
+            accounts: Vec::new(),
+            locked: false,
+        };
+        let history = MemHistory::new();
+        helper.hint(line, line.len(), &Context::new(&history))
+    }
+
+    #[test]
+    fn a_slash_lists_the_commands_immediately() {
+        let hint = hint_for("/").expect("`/` on its own should list everything");
+        for name in COMMAND_NAMES {
+            assert!(
+                hint.contains(name),
+                "`{name}` missing from the list: {hint}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_list_narrows_as_more_is_typed() {
+        assert_eq!(
+            hint_for("/re")
+                .unwrap()
+                .split_whitespace()
+                .collect::<Vec<_>>(),
+            ["rename", "reveal", "restore"]
+        );
+        assert_eq!(
+            hint_for("/ex")
+                .unwrap()
+                .split_whitespace()
+                .collect::<Vec<_>>(),
+            ["export", "exit"]
+        );
+        // Down to one, the hint completes the word instead of echoing it back.
+        assert_eq!(hint_for("/doc").as_deref(), Some("tor"));
+        // And says nothing once the word is whole.
+        assert_eq!(hint_for("/doctor"), None);
+        // Nothing matches: no hint rather than an empty one.
+        assert_eq!(hint_for("/zzz"), None);
+    }
+
+    #[test]
+    fn the_hint_stays_out_of_the_way_the_rest_of_the_time() {
+        // No slash: the user is typing a bare command, which Tab handles.
+        assert_eq!(hint_for("ls"), None);
+        // Past the command word, the list would just be noise.
+        assert_eq!(hint_for("/get github"), None);
+        assert_eq!(hint_for("/import qr a.png"), None);
+
+        // Mid-line editing must not sprout a hint after the cursor.
+        let helper = NekoHelper {
+            accounts: Vec::new(),
+            locked: false,
+        };
+        let history = MemHistory::new();
+        assert_eq!(helper.hint("/re", 1, &Context::new(&history)), None);
+    }
+
+    #[test]
+    fn a_bare_slash_is_accepted_as_help() {
+        // `/` alone tokenises to one word that strips to nothing, and the
+        // dispatcher treats that as `help` rather than an unknown command.
+        let words = tokenize("/");
+        assert_eq!(words, ["/"]);
+        assert_eq!(words[0].strip_prefix('/'), Some(""));
     }
 
     #[test]
