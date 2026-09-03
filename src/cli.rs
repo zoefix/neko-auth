@@ -15,8 +15,8 @@ use crate::i18n;
     version,
     about = "A fully offline TOTP authenticator with an encrypted vault",
     long_about = "neko-auth keeps two-factor secrets in a local, encrypted SQLite vault.\n\
-                  Nothing leaves the machine: the only command that touches the network is \
-                  `update`, and only when you run it.\n\n\
+                  Nothing leaves the machine: there is no HTTP client, no TLS, and \
+                  no DNS resolver in the build.\n\n\
                   Run with no arguments to open the interactive session."
 )]
 pub struct Cli {
@@ -87,20 +87,20 @@ pub enum Command {
     ChangePassword,
     /// Check the vault for damage.
     Doctor,
+    /// Retired in 0.1.3; kept only to explain itself.
+    ///
+    /// Hidden, so it is absent from help and from completion, but still
+    /// recognised: `neko-auth update` was the documented way to upgrade up to
+    /// 0.1.2, and answering it with "unrecognized subcommand" would look like
+    /// a broken install rather than a deliberate removal.
+    #[command(hide = true, alias = "upgrade")]
+    Update,
     /// Show or change settings.
     Config {
         /// Setting to change. Omit to list everything.
         key: Option<String>,
         /// New value. Omit to show just this setting.
         value: Option<String>,
-    },
-    /// Check for a new release, or install one. The only command that
-    /// contacts the network.
-    #[cfg(feature = "update")]
-    Update {
-        /// Only report whether a newer version exists.
-        #[arg(long)]
-        check: bool,
     },
 }
 
@@ -159,8 +159,6 @@ pub fn localized_command() -> clap::Command {
         ("change-password", i18n::cmd_passwd()),
         ("doctor", i18n::cmd_doctor()),
         ("config", i18n::cmd_config()),
-        #[cfg(feature = "update")]
-        ("update", i18n::cmd_update()),
     ];
     for (name, about) in subcommands {
         command = command.mut_subcommand(name, |sub| sub.about(about));
@@ -205,13 +203,6 @@ pub fn localized_command() -> clap::Command {
             sub.mut_arg("key", |arg| arg.help(i18n::arg_config_key()))
                 .mut_arg("value", |arg| arg.help(i18n::arg_config_value()))
         });
-
-    #[cfg(feature = "update")]
-    {
-        command = command.mut_subcommand("update", |sub| {
-            sub.mut_arg("check", |arg| arg.help(i18n::arg_check()))
-        });
-    }
 
     apply_help_template(&mut command, true);
     command

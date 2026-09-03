@@ -9,7 +9,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-![Version](https://img.shields.io/badge/VERSION-v0.1.2-8A2BE2?style=for-the-badge&labelColor=444)
+![Version](https://img.shields.io/badge/VERSION-v0.1.3-8A2BE2?style=for-the-badge&labelColor=444)
 ![Platform](https://img.shields.io/badge/PLATFORM-MACOS%20%7C%20LINUX%20%7C%20WINDOWS-00B5E2?style=for-the-badge&labelColor=444)
 ![Rust](https://img.shields.io/badge/RUST-1.82%2B-000000?style=for-the-badge&labelColor=444)
 ![Licence](https://img.shields.io/badge/LICENCE-MIT-F5A623?style=for-the-badge&labelColor=444)
@@ -19,7 +19,8 @@
 ## 這東西是做什麼的
 
 雙重驗證的金鑰存進本機一個加密的 SQLite 保險庫。不同步、不上傳，也沒有帳號
-要登入。全程唯一會開啟網路連線的指令是 `update`，而且只在你主動執行時。
+要登入。程式裡沒有任何連網程式碼 —— 不檢查更新、不回報資料，相依樹裡也找不到
+任何 HTTP 用戶端。
 
 即使您的筆記型電腦被盜或 SQLite 資料庫檔案被複製，若沒有您的電子郵件信箱和密碼，其中的內容仍無法被存取—一切都受到您密碼的保護。
 
@@ -28,7 +29,7 @@ $ neko-auth
 電子郵件：zoe@example.com
 主密碼：
 
-neko-auth 0.1.2
+neko-auth 0.1.3
 保險庫：~/.local/share/neko-auth/vault.db
 閒置 300 秒後自動鎖定
 按 / 列出指令，`exit` 離開
@@ -78,7 +79,7 @@ cargo install --git https://github.com/zoefix/neko-auth
 ```
 
 產物是一個靜態執行檔，沒有執行時相依；SQLite 是編譯進去的。如果不想要 QR code
-圖片解碼（它會引入 `image`，一大片解析程式碼面）和自動更新：
+圖片解碼（它會引入 `image`，一大片解析程式碼面）：
 
 ```bash
 cargo build --release --no-default-features
@@ -156,7 +157,6 @@ neko-auth add                   # 手動輸入網站「無法掃描？」給的�
 | `config [鍵] [值]` | 查看或修改設定 |
 | `lang [代碼]` | 查看或切換介面語言 |
 | `lock` | 立即從記憶體中抹除金鑰 |
-| `update [--check]` | 檢查新版本（唯一會連網的指令） |
 
 打一個 `/` 就會立刻列出全部指令，繼續打會收窄 —— `/re` 只剩 `rename reveal restore`。
 每條指令都接受前導 `/`，所以 `/help` 和 `help` 一樣能用。
@@ -360,23 +360,45 @@ SYSTEM 和系統管理員，而手寫 DACL 程式碼只會增加風險，並不�
 
 ---
 
-## 更新
+## 升級
+
+重新執行你平台對應的安裝指令即可。它只替換執行檔，不會碰保險庫。
+
+macOS、Linux、WSL:
 
 ```bash
-neko-auth update --check
-neko-auth update
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-這是唯一會碰網路的指令。沒有啟動檢查，也沒有遙測：一個賣點是「留在你電腦上」
-的工具，不該悄悄告訴伺服器你用得有多頻繁。
+Windows PowerShell:
 
-下載會被驗證兩次：先用編譯進執行檔的公鑰驗證校驗和檔案的 Ed25519 簽章，
-再用那個檔案裡的 SHA-256 驗證封存檔。單靠校驗和只能證明位元組從提供它的人
-那裡完整送達；簽章才是 GitHub 帳號被入侵時依然成立的那道檢查。沒有編入簽章
-公鑰的組建會回報新版本，但拒絕安裝。
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
 
-用 `config update_repo <owner>/<repo>` 設定來源倉庫，或在建置時用
-`NEKO_AUTH_REPO` 指定。
+沒有 `update` 指令，執行時也無從加一個：執行檔裡根本沒有 HTTP 用戶端，
+沒有任何東西能去取一份替換。升級由另一個程式完成，而且是你主動執行的。
+
+這是一筆明擺著的交易。你失去了一道指令就能升級的方便。換來的是：拿著你 TOTP
+金鑰的那個行程，裡面沒有任何程式碼能夠聯繫到另一台機器 —— 也就是說，它裡面的
+漏洞沒辦法被改造成一個會往外發訊息的漏洞，你也不必去相信一個會自我覆寫的執行檔
+能把自己換對。在這個專案上跑 `cargo tree`，找不到 HTTP 用戶端、TLS 堆疊、
+DNS 解析器或非同步執行期，而且測試套件裡有一條測試：哪天真的出現了，它就會失敗。
+
+如果你更願意驗證發布出來的執行檔而不是原始碼：在 macOS 組建上跑 `nm -u`，
+會列出 200 個匯入符號，其中跟 socket 有關的只有 `socketpair`、`send` 和
+`recv`。它們來自 crossterm —— 它用一對匿名 `AF_UNIX` socket 當自我喚醒管線，
+來輪詢終端機的按鍵事件：寫一個位元組喚醒讀端，再讀掉它。這樣的一對沒有位址，
+也無法被連線；它只是同一個行程裡兩個檔案描述元之間的本機 IPC。
+
+`neko-auth update` 仍然會回應，而不是報「未知指令」，但只會說上面這些，
+並把你指回這裡。
+
+安裝腳本會把下載驗證兩次：先驗證校驗和檔案的 Ed25519 簽章，再用那個檔案裡的
+SHA-256 驗證封存檔。單靠校驗和只能證明位元組從提供它的人那裡完整送達；簽章
+才是 GitHub 帳號被入侵時依然成立的那道檢查。公鑰是寫進安裝腳本裡的，而不是
+跟著簽章一起下載 —— 因為一把從簽章同一處取來的金鑰，什麼也證明不了。發布目前
+還沒有簽章；在簽章啟用之前，安裝腳本只驗證校驗和，並會告訴你簽章這一步跳過了。
 
 ---
 

@@ -54,6 +54,16 @@ fn run() -> Result<()> {
     });
 
     let cli = cli::parse_localized();
+
+    // Answered before the vault is even located: someone who has just
+    // installed and typed the command they remember has no vault yet, and
+    // making them supply an email and password to be told the command is gone
+    // would be the opposite of helpful.
+    if let Some(Command::Update) = &cli.command {
+        ui::note(&i18n::update_removed());
+        return Ok(());
+    }
+
     let vault_path = paths::vault_path(cli.vault.as_deref())?;
 
     // `init` is the one command that runs without an existing vault.
@@ -106,7 +116,7 @@ fn run() -> Result<()> {
 fn dispatch(app: &mut App, command: Command) -> Result<()> {
     match command {
         // Handled before the vault is opened.
-        Command::Init { .. } => unreachable!(),
+        Command::Init { .. } | Command::Update => unreachable!(),
 
         Command::Ls { pattern } => app.list(pattern.as_deref()),
         // `block: true` for one-shot use: the process has to stay alive to
@@ -154,7 +164,5 @@ fn dispatch(app: &mut App, command: Command) -> Result<()> {
             }
             (Some(key), Some(value)) => app.set_config(&key, &value),
         },
-        #[cfg(feature = "update")]
-        Command::Update { check } => neko_auth::update::run(&app.config, check),
     }
 }

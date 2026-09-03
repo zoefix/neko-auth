@@ -27,40 +27,45 @@ use crate::i18n::{self, Language};
 use crate::secrets::Cancelled;
 use crate::ui;
 
-/// Command names, in the order `help` lists them.
-const COMMAND_NAMES: &[&str] = &[
-    "ls", "get", "watch", "add", "import", "rm", "rename", "show", "reveal", "export", "restore",
-    "passwd", "doctor", "config", "lang", "lock", "update", "help", "exit",
+/// A command name paired with the function that describes it.
+type CommandEntry = (&'static str, fn() -> String);
+
+/// Every command the session offers, in the order `help` lists them.
+///
+/// One list rather than a name array beside a `match`: the two drifted apart
+/// once already, and because the `match` ended in a catch-all the stray name
+/// silently inherited the wrong description instead of failing to compile.
+const COMMANDS: &[CommandEntry] = &[
+    ("ls", i18n::cmd_ls),
+    ("get", i18n::cmd_get),
+    ("watch", i18n::cmd_watch),
+    ("add", i18n::cmd_add),
+    ("import", i18n::cmd_import),
+    ("rm", i18n::cmd_rm),
+    ("rename", i18n::cmd_rename),
+    ("show", i18n::cmd_show),
+    ("reveal", i18n::cmd_reveal),
+    ("export", i18n::cmd_export),
+    ("restore", i18n::cmd_restore),
+    ("passwd", i18n::cmd_passwd),
+    ("doctor", i18n::cmd_doctor),
+    ("config", i18n::cmd_config),
+    ("lang", i18n::cmd_lang),
+    ("lock", i18n::cmd_lock),
+    ("help", i18n::cmd_help),
+    ("exit", i18n::cmd_exit),
 ];
+
+/// The command names, for completion and for the `/` menu.
+fn command_names() -> impl Iterator<Item = &'static str> {
+    COMMANDS.iter().map(|(name, _)| *name)
+}
 
 /// Name and description, resolved in the active language.
 fn commands() -> Vec<(&'static str, String)> {
-    COMMAND_NAMES
+    COMMANDS
         .iter()
-        .map(|name| {
-            let description = match *name {
-                "ls" => i18n::cmd_ls(),
-                "get" => i18n::cmd_get(),
-                "watch" => i18n::cmd_watch(),
-                "add" => i18n::cmd_add(),
-                "import" => i18n::cmd_import(),
-                "rm" => i18n::cmd_rm(),
-                "rename" => i18n::cmd_rename(),
-                "show" => i18n::cmd_show(),
-                "reveal" => i18n::cmd_reveal(),
-                "export" => i18n::cmd_export(),
-                "restore" => i18n::cmd_restore(),
-                "passwd" => i18n::cmd_passwd(),
-                "doctor" => i18n::cmd_doctor(),
-                "config" => i18n::cmd_config(),
-                "lang" => i18n::cmd_lang(),
-                "lock" => i18n::cmd_lock(),
-                "update" => i18n::cmd_update(),
-                "help" => i18n::cmd_help(),
-                _ => i18n::cmd_exit(),
-            };
-            (*name, description)
-        })
+        .map(|(name, describe)| (*name, describe()))
         .collect()
 }
 
@@ -265,8 +270,9 @@ fn dispatch(app: &mut App, words: &[String]) -> Result<Flow> {
             }
             (Some(key), Some(value)) => app.set_config(key, value)?,
         },
-        #[cfg(feature = "update")]
-        "update" => crate::update::run(&app.config, args.contains(&"--check"))?,
+        // Retired rather than silently unknown: it was a command until 0.1.2,
+        // and "unknown command" would read as a bug rather than as a decision.
+        "update" | "upgrade" => ui::note(&i18n::update_removed()),
         other => {
             anyhow::bail!("{}", i18n::unknown_command(other))
         }
@@ -449,9 +455,7 @@ impl Hinter for NekoHelper {
             return None;
         }
 
-        let matching: Vec<&str> = COMMAND_NAMES
-            .iter()
-            .copied()
+        let matching: Vec<&str> = command_names()
             .filter(|name| name.starts_with(typed))
             .collect();
 
@@ -482,7 +486,7 @@ impl Completer for NekoHelper {
         let first = line[..start].split_whitespace().next().unwrap_or("");
 
         let candidates: Vec<&str> = if start == 0 {
-            COMMAND_NAMES.to_vec()
+            command_names().collect()
         } else if first == "import" && line[..start].split_whitespace().count() == 1 {
             vec!["uri", "qr", "file"]
         } else if first == "export" && line[..start].split_whitespace().count() == 1 {
@@ -617,7 +621,7 @@ mod tests {
     #[test]
     fn a_slash_lists_the_commands_immediately() {
         let hint = hint_for("/").expect("`/` on its own should list everything");
-        for name in COMMAND_NAMES {
+        for name in command_names() {
             assert!(
                 hint.contains(name),
                 "`{name}` missing from the list: {hint}"
@@ -695,5 +699,26 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         // A name with spaces comes back quoted so tokenize() sees one word.
         assert_eq!(pairs[0].replacement, "\"GitHub (zoe)\"");
+    }
+
+    #[test]
+    fn update_is_answered_but_never_offered() {
+        // It is dispatched, so someone typing the command they remember gets
+        // an explanation rather than "unknown command"...
+        assert!(!command_names().any(|name| name == "update" || name == "upgrade"));
+
+        // ...but it is absent from the `/` menu and from completion, so it is
+        // not presented as something to do.
+        let hint = hint_for("/").expect("`/` lists the commands");
+        assert!(!hint.contains("update"), "still in the menu: {hint}");
+        assert_eq!(hint_for("/up"), None, "still completes to `update`");
+
+        let helper = NekoHelper {
+            accounts: Vec::new(),
+            locked: false,
+        };
+        let history = MemHistory::new();
+        let (_, pairs) = helper.complete("up", 2, &Context::new(&history)).unwrap();
+        assert!(pairs.is_empty(), "still completes: {:?}", pairs.len());
     }
 }

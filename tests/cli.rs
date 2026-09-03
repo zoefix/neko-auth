@@ -773,3 +773,50 @@ fn every_listing_command_is_translated_not_just_some() {
         }
     }
 }
+
+#[test]
+fn update_explains_itself_without_a_vault_or_a_password() {
+    // `update` was the documented way to upgrade up to 0.1.2, so people will
+    // still type it. Two things have to hold: it must not read as a broken
+    // install, and it must answer without a vault and without asking for the
+    // email and password — the person most likely to type it has just
+    // installed and has neither.
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = neko(dir.path())
+        .arg("update")
+        // Empty stdin: a prompt would fail here rather than hang, which is
+        // what makes this an assertion and not just a smoke test.
+        .write_stdin("")
+        .assert()
+        .success();
+    let rendered = String::from_utf8_lossy(&output.get_output().stdout).into_owned();
+
+    assert!(
+        rendered.contains("never connects to the network"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("re-run the install command"),
+        "{rendered}"
+    );
+    // Not a word about a missing vault, and no prompt.
+    assert!(!rendered.to_lowercase().contains("email"), "{rendered}");
+
+    // Hidden, so it is not advertised as a thing to do. Checked against the
+    // command list rather than the whole page, because the description above
+    // it legitimately mentions that there is no update check.
+    let help = neko(dir.path()).arg("--help").assert().success();
+    let help = String::from_utf8_lossy(&help.get_output().stdout).into_owned();
+    let listed: Vec<&str> = help
+        .lines()
+        .filter_map(|line| line.strip_prefix("  "))
+        .filter(|line| !line.starts_with(' '))
+        .filter_map(|line| line.split_whitespace().next())
+        .collect();
+    assert!(
+        listed.contains(&"doctor"),
+        "command list not found: {listed:?}"
+    );
+    assert!(!listed.contains(&"update"), "still advertised: {listed:?}");
+}

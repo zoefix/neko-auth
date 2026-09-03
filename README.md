@@ -10,7 +10,7 @@ stored nowhere.
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-![Version](https://img.shields.io/badge/VERSION-v0.1.2-8A2BE2?style=for-the-badge&labelColor=444)
+![Version](https://img.shields.io/badge/VERSION-v0.1.3-8A2BE2?style=for-the-badge&labelColor=444)
 ![Platform](https://img.shields.io/badge/PLATFORM-MACOS%20%7C%20LINUX%20%7C%20WINDOWS-00B5E2?style=for-the-badge&labelColor=444)
 ![Rust](https://img.shields.io/badge/RUST-1.82%2B-000000?style=for-the-badge&labelColor=444)
 ![Licence](https://img.shields.io/badge/LICENCE-MIT-F5A623?style=for-the-badge&labelColor=444)
@@ -20,8 +20,9 @@ stored nowhere.
 ## What this is
 
 Two-factor secrets go into a local, encrypted SQLite vault. Nothing is synced,
-nothing is uploaded, and there is no account to sign in to. The only command
-that opens a network socket is `update`, and only when you run it.
+nothing is uploaded, and there is no account to sign in to. There is no
+network code in the program at all — no update check, no telemetry, and no HTTP
+client anywhere in its dependency tree.
 
 Even if your laptop is stolen or the SQLite database file is copied, the contents remain inaccessible without your email and password—everything is protected by your password.
 
@@ -30,7 +31,7 @@ $ neko-auth
 Email: zoe@example.com
 Master password:
 
-neko-auth 0.1.2
+neko-auth 0.1.3
 vault: ~/.local/share/neko-auth/vault.db
 auto-locks after 300s idle
 press / to list commands, `exit` to leave
@@ -83,7 +84,7 @@ cargo install --git https://github.com/zoefix/neko-auth
 
 The result is one static binary with no runtime dependencies; SQLite is
 compiled in. To build without the QR-image decoder (which pulls in the `image`
-crate, a large parsing surface) and without the updater:
+crate, a large parsing surface):
 
 ```bash
 cargo build --release --no-default-features
@@ -168,7 +169,6 @@ Everything works both inside the session and as a one-shot command.
 | `config [key] [value]` | show or change settings |
 | `lang [code]` | show or switch the interface language |
 | `lock` | erase the keys from memory now |
-| `update [--check]` | check for a new release (the only networked command) |
 
 Typing `/` lists the commands straight away, and narrows as you keep typing — `/re`
 leaves `rename reveal restore`. A leading `/` is accepted on every command, so
@@ -405,26 +405,54 @@ local disk and use `export encrypted` for backups.
 
 ---
 
-## Updating
+## Upgrading
+
+Re-run the install command for your platform. It replaces the binary and does
+not touch the vault.
+
+macOS, Linux, WSL:
 
 ```bash
-neko-auth update --check
-neko-auth update
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-This is the only command that touches the network. There is no startup check
-and no telemetry: a tool whose selling point is that it stays on your machine
-should not quietly tell a server how often you use it.
+Windows PowerShell:
 
-A download is verified twice: an Ed25519 signature over the checksum file
-(against a key compiled into the binary), then the SHA-256 of the archive
-against that file. A checksum alone would only prove the bytes arrived intact
-from whoever served them; the signature is the check that still holds if the
-GitHub account is compromised. A build with no signing key compiled in will
-report new versions but refuse to install one.
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
 
-Configure the source repository with `config update_repo <owner>/<repo>`, or at
-build time with `NEKO_AUTH_REPO`.
+There is no `update` command, and no way to add one at runtime: the binary
+contains no HTTP client, so there is nothing in it that could fetch a
+replacement. Upgrading is a separate program you run deliberately.
+
+That is the trade, stated plainly. You give up one-command upgrades. In return,
+the process holding your TOTP secrets has no code in it that can reach another
+machine — which means a bug in it cannot be turned into one that phones home,
+and you do not have to trust a self-replacing binary to overwrite itself
+correctly. A `cargo tree` on this project turns up no HTTP client, no TLS
+stack, no DNS resolver, and no async runtime, and a test in the suite fails if
+one ever appears.
+
+If you would rather check the shipped binary than the source, `nm -u` on the
+macOS build lists 200 imported symbols, of which the only socket-related ones
+are `socketpair`, `send` and `recv`. Those come from crossterm, which polls
+the terminal for key events using an unnamed `AF_UNIX` socket pair as a
+self-pipe — one byte written to wake the reader, one read to drain it. A pair
+like that has no address and cannot be connected to; it is local IPC between
+two file descriptors in one process.
+
+`neko-auth update` still answers, rather than reporting an unknown command, but
+only to say the above and point you back here.
+
+The installer verifies a download twice: an Ed25519 signature over the checksum
+file, then the SHA-256 of the archive against that file. A checksum alone would
+only prove the bytes arrived intact from whoever served them; the signature is
+the check that still holds if the GitHub account is compromised. The public key
+is built into the install script rather than downloaded next to the signature,
+because a key fetched from the same place as the signature proves nothing.
+Releases are not signed yet — until they are, the installer verifies the
+checksum and tells you the signature was skipped.
 
 ---
 

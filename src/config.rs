@@ -8,15 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::{self, Language};
 
-/// Where `update` looks for releases.
-///
-/// Overridable at build time (`NEKO_AUTH_REPO=owner/repo cargo build`) and at
-/// run time through the config file, so a fork does not have to patch source.
-pub const DEFAULT_UPDATE_REPO: &str = match option_env!("NEKO_AUTH_REPO") {
-    Some(repo) => repo,
-    None => "zoefix/neko-auth",
-};
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -26,18 +17,22 @@ pub struct Config {
     pub clipboard_clear_seconds: u64,
     /// `interactive`, `moderate`, or `paranoid`.
     pub kdf_profile: String,
-    /// `owner/repo` to check for updates. Only ever contacted by `update`.
-    pub update_repo: String,
-    /// Accepted but unused.
-    ///
-    /// Codes were once printed as `123 456`. Selecting one with the mouse then
-    /// copied the space as well, which had to be removed by hand before it
-    /// could be pasted anywhere — so codes are now printed as plain digits.
-    /// The field is still parsed, because `deny_unknown_fields` would
-    /// otherwise refuse to load a file written by an older version, and it is
-    /// dropped the next time the file is written.
+    // Settings that older versions wrote and this one no longer has. They are
+    // still parsed, because `deny_unknown_fields` would otherwise refuse the
+    // whole file — locking someone out of their own vault over a setting that
+    // does not exist any more. Neither is written back out.
+    //
+    // `group_digits`: codes were once printed as `123 456`. Selecting one with
+    // the mouse copied the space too, which had to be stripped by hand before
+    // it could be pasted anywhere, so codes are now plain digits.
+    //
+    // `update_repo`: pointed `update` at a GitHub repository. The program no
+    // longer updates itself and no longer opens a socket at all; upgrading is
+    // the install script's job.
     #[serde(default, rename = "group_digits", skip_serializing)]
     _obsolete_group_digits: Option<bool>,
+    #[serde(default, rename = "update_repo", skip_serializing)]
+    _obsolete_update_repo: Option<String>,
     /// `auto`, `en`, `zh-Hans`, `zh-Hant`, or `ja`.
     pub language: String,
     /// Leave the session's output in the terminal after `exit`.
@@ -63,8 +58,8 @@ impl Default for Config {
             idle_lock_seconds: 300,
             clipboard_clear_seconds: 15,
             kdf_profile: "moderate".to_string(),
-            update_repo: DEFAULT_UPDATE_REPO.to_string(),
             _obsolete_group_digits: None,
+            _obsolete_update_repo: None,
             // Follows the locale environment, which is what someone who never
             // opens this file will get.
             language: "auto".to_string(),
@@ -105,18 +100,6 @@ impl Config {
             .then(|| Duration::from_secs(self.clipboard_clear_seconds))
     }
 
-    /// Where `update` looks, ignoring the placeholder older versions saved.
-    ///
-    /// 0.1.0 wrote the build-time default into the file verbatim, so a config
-    /// from then pins `update` to a repository that does not exist.
-    pub fn update_repo(&self) -> &str {
-        if self.update_repo.starts_with("OWNER/") {
-            DEFAULT_UPDATE_REPO
-        } else {
-            &self.update_repo
-        }
-    }
-
     pub fn language(&self) -> Language {
         i18n::resolve(&self.language)
     }
@@ -147,7 +130,6 @@ impl Config {
                 // already in the language just chosen.
                 i18n::set_current(language);
             }
-            "update_repo" => self.update_repo = value.to_string(),
             "hide_email" => self.hide_email = value.parse()?,
             "keep_scrollback" => self.keep_scrollback = value.parse()?,
             other => anyhow::bail!("{}", i18n::unknown_setting(other)),
@@ -163,10 +145,6 @@ impl Config {
                 self.clipboard_clear_seconds.to_string(),
             ),
             ("kdf_profile", self.kdf_profile.clone()),
-            // The effective value, not the stored one: a config from 0.1.0 holds
-            // a placeholder that is ignored, and listing it would describe a
-            // setting that is not in force.
-            ("update_repo", self.update_repo().to_string()),
             ("language", self.language.clone()),
             ("hide_email", self.hide_email.to_string()),
             ("keep_scrollback", self.keep_scrollback.to_string()),
@@ -253,50 +231,38 @@ mod tests {
 
     #[test]
     fn a_config_written_by_an_older_version_still_loads() {
-        // `group_digits` is gone, and deny_unknown_fields would otherwise
-        // refuse the file outright — locking the user out of their own vault
-        // over a setting that no longer exists.
+        // `group_digits` and `update_repo` are gone, and deny_unknown_fields
+        // would otherwise refuse the file outright — locking the user out of
+        // their own vault over settings that no longer exist.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.toml");
         std::fs::write(
             &path,
-            "idle_lock_seconds = 300\ngroup_digits = true\nlanguage = \"ja\"\n",
+            "idle_lock_seconds = 300\ngroup_digits = true\n\
+             update_repo = \"zoefix/neko-auth\"\nlanguage = \"ja\"\n",
         )
         .unwrap();
 
         let cfg = Config::load(&path).unwrap();
         assert_eq!(cfg.language, "ja");
-        // And it is not written back out.
+        // And neither is written back out.
         cfg.save(&path).unwrap();
-        assert!(!std::fs::read_to_string(&path)
-            .unwrap()
-            .contains("group_digits"));
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(!written.contains("group_digits"));
+        assert!(!written.contains("update_repo"));
     }
 
     #[test]
-    fn the_placeholder_update_repo_is_ignored() {
-        // 0.1.0 saved the build-time placeholder verbatim, which would pin
-        // `update` to a repository that does not exist.
-        let stale = Config {
-            update_repo: "OWNER/neko-auth".to_string(),
-            ..Default::default()
-        };
-        assert_eq!(stale.update_repo(), DEFAULT_UPDATE_REPO);
-
-        let forked = Config {
-            update_repo: "someone/their-fork".to_string(),
-            ..Default::default()
-        };
-        assert_eq!(forked.update_repo(), "someone/their-fork");
-
-        // `config` must list what is in force, not the ignored placeholder.
-        let listed = stale
-            .entries()
-            .into_iter()
-            .find(|(k, _)| *k == "update_repo")
-            .map(|(_, v)| v)
-            .unwrap();
-        assert_eq!(listed, DEFAULT_UPDATE_REPO);
+    fn update_repo_is_neither_listed_nor_settable() {
+        // The setting is accepted for compatibility only. Listing it, or
+        // letting `config update_repo ...` succeed, would advertise an update
+        // mechanism that no longer exists.
+        let cfg = Config::default();
+        assert!(!cfg.entries().iter().any(|(k, _)| *k == "update_repo"));
+        assert!(cfg
+            .clone()
+            .set("update_repo", "someone/their-fork")
+            .is_err());
     }
 
     #[test]

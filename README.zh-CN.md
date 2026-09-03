@@ -9,7 +9,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-![Version](https://img.shields.io/badge/VERSION-v0.1.2-8A2BE2?style=for-the-badge&labelColor=444)
+![Version](https://img.shields.io/badge/VERSION-v0.1.3-8A2BE2?style=for-the-badge&labelColor=444)
 ![Platform](https://img.shields.io/badge/PLATFORM-MACOS%20%7C%20LINUX%20%7C%20WINDOWS-00B5E2?style=for-the-badge&labelColor=444)
 ![Rust](https://img.shields.io/badge/RUST-1.82%2B-000000?style=for-the-badge&labelColor=444)
 ![Licence](https://img.shields.io/badge/LICENCE-MIT-F5A623?style=for-the-badge&labelColor=444)
@@ -19,7 +19,8 @@
 ## 这东西是干什么的
 
 两步验证的密钥存进本地一个加密的 SQLite 保险库。不同步、不上传，也没有账号
-要登录。全程唯一会打开网络连接的命令是 `update`，而且只在你主动运行时。
+要登录。程序里没有任何联网代码 —— 不检查更新、不上报数据，依赖树里也找不到
+任何 HTTP 客户端。
 
 哪怕笔记本电脑被盗、SQLite 数据库文件被拷贝，只要对方没有你的邮箱和密码，就无法查看任何内容——一切都由你的密码保护着。
 
@@ -28,7 +29,7 @@ $ neko-auth
 邮箱：zoe@example.com
 主密码：
 
-neko-auth 0.1.2
+neko-auth 0.1.3
 保险库：~/.local/share/neko-auth/vault.db
 闲置 300 秒后自动锁定
 按 / 列出命令，`exit` 退出
@@ -78,7 +79,7 @@ cargo install --git https://github.com/zoefix/neko-auth
 ```
 
 产物是一个静态二进制，没有运行时依赖；SQLite 是编译进去的。如果不想要二维码
-图片解码（它会引入 `image`，一大片解析代码面）和自更新：
+图片解码（它会引入 `image`，一大片解析代码面）：
 
 ```bash
 cargo build --release --no-default-features
@@ -155,7 +156,6 @@ neko-auth add                   # 手动输入网站"无法扫码？"给的那�
 | `config [键] [值]` | 查看或修改设置 |
 | `lang [代码]` | 查看或切换界面语言 |
 | `lock` | 立即从内存中擦除密钥 |
-| `update [--check]` | 检查新版本（唯一会联网的命令） |
 
 打一个 `/` 就会立刻列出全部命令，继续打会收窄 —— `/re` 只剩 `rename reveal restore`。
 每条命令都接受前导 `/`，所以 `/help` 和 `help` 一样能用。
@@ -356,23 +356,45 @@ SYSTEM 和管理员，而手写 DACL 代码只会增加风险，并不能挡住�
 
 ---
 
-## 更新
+## 升级
+
+重新运行你平台对应的安装命令即可。它只替换二进制，不会碰保险库。
+
+macOS、Linux、WSL:
 
 ```bash
-neko-auth update --check
-neko-auth update
+curl -fsSL https://raw.githubusercontent.com/zoefix/neko-auth/main/install.sh | sh
 ```
 
-这是唯一会碰网络的命令。没有启动检查，也没有遥测：一个卖点是"留在你机器上"的
-工具，不该悄悄告诉服务器你用得有多频繁。
+Windows PowerShell:
 
-下载会被验证两次：先用编译进二进制的公钥验证校验和文件的 Ed25519 签名，
-再用那个文件里的 SHA-256 校验归档。单靠校验和只能证明字节从提供它的人那里
-完整到达；签名才是 GitHub 账号被攻破时依然成立的那道检查。没有编入签名公钥的
-构建会报告新版本，但拒绝安装。
+```powershell
+irm https://raw.githubusercontent.com/zoefix/neko-auth/main/install.ps1 | iex
+```
 
-用 `config update_repo <owner>/<repo>` 配置来源仓库，或在构建时用
-`NEKO_AUTH_REPO` 指定。
+没有 `update` 命令，运行时也无从加一个：二进制里根本没有 HTTP 客户端，
+没有任何东西能去取一份替换。升级由另一个程序完成，而且是你主动运行的。
+
+这是一笔明摆着的交易。你失去了一条命令就能升级的方便。换来的是：拿着你 TOTP
+密钥的那个进程，里面没有任何代码能够联系到另一台机器 —— 也就是说，它里面的漏洞
+没法被改造成一个会往外发消息的漏洞，你也不必去相信一个会自我覆写的二进制能把
+自己替换对。在这个项目上跑 `cargo tree`，找不到 HTTP 客户端、TLS 栈、DNS 解析器
+或异步运行时，而且测试套件里有一条测试：一旦哪天出现了，它就会失败。
+
+如果你更愿意验证发布出来的二进制而不是源码：在 macOS 构建上跑 `nm -u`，
+会列出 200 个导入符号，其中跟 socket 有关的只有 `socketpair`、`send` 和
+`recv`。它们来自 crossterm —— 它用一对匿名 `AF_UNIX` socket 当自唤醒管道，
+来轮询终端的按键事件：写一个字节唤醒读端，再读掉它。这样的一对没有地址，
+也无法被连接；它只是同一个进程里两个文件描述符之间的本地 IPC。
+
+`neko-auth update` 仍然会应答，而不是报"未知命令"，但只会说上面这些，
+并把你指回这里。
+
+安装脚本会把下载验证两次：先验证校验和文件的 Ed25519 签名，再用那个文件里的
+SHA-256 校验归档。单靠校验和只能证明字节从提供它的人那里完整到达；签名才是
+GitHub 账号被攻破时依然成立的那道检查。公钥是写进安装脚本里的，而不是跟着
+签名一起下载 —— 因为一把从签名同一处取来的钥匙，什么也证明不了。发布目前
+还没有签名；在签名启用之前，安装脚本只校验校验和，并会告诉你签名这一步跳过了。
 
 ---
 

@@ -963,12 +963,6 @@ messages! {
         zh_hant: "立即從記憶體中抹除金鑰",
         ja: "鍵を今すぐメモリから消去";
 
-    fn cmd_update() =>
-        en: "check for a new release",
-        zh_hans: "检查新版本",
-        zh_hant: "檢查新版本",
-        ja: "新しいリリースを確認";
-
     fn cmd_help() =>
         en: "this list",
         zh_hans: "本列表",
@@ -1081,107 +1075,25 @@ messages! {
         ja: "neko-auth は内部エラーで停止しました。保管庫は変更されていません。\n\
              詳細が必要なら RUST_BACKTRACE=1 を付けて再実行してください (出力にシークレットを含む場合があります)。";
 
-    // -- update ------------------------------------------------------------
+    // -- retired commands --------------------------------------------------
 
-    fn update_no_repo() =>
-        en: "no update repository is configured.\n\
-             Set one with `config update_repo <owner>/<repo>`, or build with \
-             NEKO_AUTH_REPO=<owner>/<repo>.",
-        zh_hans: "没有配置更新仓库。\n\
-                  用 `config update_repo <owner>/<repo>` 设置，或在构建时指定 \
-                  NEKO_AUTH_REPO=<owner>/<repo>。",
-        zh_hant: "沒有設定更新倉庫。\n\
-                  用 `config update_repo <owner>/<repo>` 設定，或在建置時指定 \
-                  NEKO_AUTH_REPO=<owner>/<repo>。",
-        ja: "更新用リポジトリが設定されていません。\n\
-             `config update_repo <owner>/<repo>` で設定するか、ビルド時に \
-             NEKO_AUTH_REPO=<owner>/<repo> を指定してください。";
-
-    fn update_contacting(repo: &str) =>
-        en: "contacting github.com for {repo}…",
-        zh_hans: "正在连接 github.com 查询 {repo}…",
-        zh_hant: "正在連線 github.com 查詢 {repo}…",
-        ja: "{repo} を github.com に問い合わせています…";
-
-    fn update_up_to_date(version: &str) =>
-        en: "neko-auth {version} is up to date",
-        zh_hans: "neko-auth {version} 已是最新版本",
-        zh_hant: "neko-auth {version} 已是最新版本",
-        ja: "neko-auth {version} は最新です";
-
-    fn update_available() =>
-        en: "update available:",
-        zh_hans: "有新版本：",
-        zh_hant: "有新版本：",
-        ja: "更新があります:";
-
-    fn update_run_to_install() =>
-        en: "run `update` without --check to install it.",
-        zh_hans: "去掉 --check 运行 `update` 即可安装。",
-        zh_hant: "去掉 --check 執行 `update` 即可安裝。",
-        ja: "--check なしで `update` を実行するとインストールします。";
-
-    fn update_downloading() =>
-        en: "downloading…",
-        zh_hans: "正在下载…",
-        zh_hant: "正在下載…",
-        ja: "ダウンロード中…";
-
-    fn update_verified() =>
-        en: "signature and checksum verified",
-        zh_hans: "签名与校验和已验证",
-        zh_hant: "簽章與校驗和已驗證",
-        ja: "署名とチェックサムを検証しました";
-
-    fn update_done(version: &str) =>
-        en: "updated to {version}",
-        zh_hans: "已更新到 {version}",
-        zh_hant: "已更新到 {version}",
-        ja: "{version} に更新しました";
-
-    fn update_vault_untouched() =>
-        en: "your vault was not touched.",
-        zh_hans: "你的保险库没有被改动。",
-        zh_hant: "你的保險庫沒有被更動。",
-        ja: "保管庫には触れていません。";
-
-    fn update_no_signing_key() =>
-        en: "this build has no release signing key compiled in, so a download cannot be \
-             verified. Install the update manually from the release page above.",
-        zh_hans: "这个构建没有编入发布签名公钥，因此无法验证下载内容。\
-                  请从上面的发布页面手动安装。",
-        zh_hant: "這個組建沒有編入發布簽章公鑰，因此無法驗證下載內容。\
-                  請從上面的發布頁面手動安裝。",
-        ja: "このビルドにはリリース署名鍵が組み込まれていないため、ダウンロードを検証できません。\
-             上のリリースページから手動でインストールしてください。";
-
-    fn update_signature_bad() =>
-        en: "the release signature does not verify. Do not install this download: either the \
-             release was not signed by the expected key, or it was altered in transit.",
-        zh_hans: "发布签名验证失败。请不要安装这个下载：要么发布不是用预期的密钥签名的，\
-                  要么它在传输过程中被篡改。",
-        zh_hant: "發布簽章驗證失敗。請不要安裝這個下載：要麼發布不是用預期的金鑰簽章的，\
-                  要麼它在傳輸過程中被竄改。",
-        ja: "リリース署名を検証できませんでした。このダウンロードはインストールしないでください。\
-             想定した鍵で署名されていないか、転送中に改変されています。";
-
-    fn update_checksum_bad(asset: &str) =>
-        en: "the downloaded {asset} does not match its published checksum",
-        zh_hans: "下载的 {asset} 与公布的校验和不符",
-        zh_hant: "下載的 {asset} 與公布的校驗和不符",
-        ja: "ダウンロードした {asset} が公開されたチェックサムと一致しません";
-
-    fn update_missing_asset(name: &str) =>
-        en: "this release has no `{name}`; install it manually instead",
-        zh_hans: "这个发布里没有 `{name}`；请改为手动安装",
-        zh_hant: "這個發布裡沒有 `{name}`；請改為手動安裝",
-        ja: "このリリースには `{name}` がありません。手動でインストールしてください";
-
-    fn update_not_available() =>
-        en: "this build was compiled without update support",
-        zh_hans: "这个构建没有编译更新支持",
-        zh_hant: "這個組建沒有編譯更新支援",
-        ja: "このビルドは更新機能を含んでいません";
+    /// `update` was a command up to 0.1.2. Answering it with "unknown command"
+    /// would read as a bug rather than as the deliberate removal it is.
+    fn update_removed() =>
+        en: "neko-auth has no update command: it never connects to the network, so it \
+             cannot fetch anything.\n\
+             To upgrade, re-run the install command from the README. An upgrade \
+             replaces the program and leaves the vault untouched.",
+        zh_hans: "neko-auth 没有 update 命令：它从不联网，所以也无从下载任何东西。\n\
+                  要升级，请重新运行 README 里的安装命令。升级只替换程序本身，\
+                  不会动到保险库。",
+        zh_hant: "neko-auth 沒有 update 指令：它從不連網，所以也無從下載任何東西。\n\
+                  要升級，請重新執行 README 裡的安裝指令。升級只替換程式本身，\
+                  不會動到保險庫。",
+        ja: "neko-auth に update コマンドはありません。ネットワークに接続しないため、\
+             何も取得できません。\n\
+             更新するには README のインストールコマンドを再実行してください。更新は\
+             プログラム自体を置き換えるだけで、保管庫には触れません。";
 }
 
 messages! {
@@ -1782,18 +1694,20 @@ messages! {
 
     fn cli_long_about() =>
         en: "neko-auth keeps two-factor secrets in a local, encrypted SQLite vault.\n\
-             Nothing leaves the machine: the only command that touches the network is \
-             `update`, and only when you run it.\n\n\
+             It has no network code at all: no update check, no telemetry, no HTTP \
+             client anywhere in the build.\n\n\
              Run with no arguments to open the interactive session.",
         zh_hans: "neko-auth 把双重验证的密钥保存在本地加密的 SQLite 保险库里。\n\
-                  数据不会离开这台机器：唯一会联网的命令是 `update`，而且只在你主动运行时。\n\n\
+                  它完全没有联网代码：不检查更新、不上报数据，整个构建里也没有任何 \
+                  HTTP 客户端。\n\n\
                   不带参数运行即可进入交互式会话。",
         zh_hant: "neko-auth 把雙重驗證的金鑰保存在本機加密的 SQLite 保險庫裡。\n\
-                  資料不會離開這台電腦：唯一會連網的指令是 `update`，而且只在你主動執行時。\n\n\
+                  它完全沒有連網程式碼：不檢查更新、不回報資料，整個組建裡也沒有任何 \
+                  HTTP 用戶端。\n\n\
                   不帶參數執行即可進入互動式工作階段。",
         ja: "neko-auth は二要素認証のシークレットを、ローカルの暗号化された SQLite 保管庫に\
-             保存します。\nデータがこのマシンを出ることはありません。ネットワークに接続する\
-             コマンドは `update` だけで、しかも実行したときだけです。\n\n\
+             保存します。\nネットワーク関連のコードは一切ありません。更新確認もテレメトリも\
+             なく、ビルド全体に HTTP クライアントも含まれていません。\n\n\
              引数なしで実行すると対話セッションを開きます。";
 
     fn cmd_init() =>
@@ -1873,12 +1787,6 @@ messages! {
         zh_hans: "新的值。省略则只显示该设置项。",
         zh_hant: "新的值。省略則只顯示該設定項。",
         ja: "新しい値。省略するとその設定だけを表示します。";
-
-    fn arg_check() =>
-        en: "Only report whether a newer version exists.",
-        zh_hans: "只报告是否有新版本。",
-        zh_hant: "只回報是否有新版本。",
-        ja: "新しいバージョンの有無だけを確認します。";
 
     fn sub_import_uri() =>
         en: "Import a single otpauth:// URI.",
@@ -1961,19 +1869,7 @@ messages! {
         ja: "引数:";
 }
 
-messages! {
-    fn update_no_checksum_entry(asset: &str) =>
-        en: "SHA256SUMS has no entry for {asset}",
-        zh_hans: "SHA256SUMS 里没有 {asset} 的条目",
-        zh_hant: "SHA256SUMS 裡沒有 {asset} 的項目",
-        ja: "SHA256SUMS に {asset} の項目がありません";
-
-    fn update_archive_missing_binary(name: &str) =>
-        en: "the release archive does not contain a `{name}`",
-        zh_hans: "发布包里没有 `{name}`",
-        zh_hant: "發布包裡沒有 `{name}`",
-        ja: "リリースアーカイブに `{name}` が含まれていません";
-}
+messages! {}
 
 messages! {
     // -- I/O and environment -----------------------------------------------
@@ -2027,60 +1923,6 @@ messages! {
         ja: "標準入力からパスワードを読み取れません";
 
     // -- update transport --------------------------------------------------
-
-    fn err_cannot_reach(url: &str) =>
-        en: "cannot reach {url}",
-        zh_hans: "无法访问 {url}",
-        zh_hant: "無法存取 {url}",
-        ja: "{url} に接続できません";
-
-    fn err_cannot_download(url: &str) =>
-        en: "cannot download {url}",
-        zh_hans: "无法下载 {url}",
-        zh_hant: "無法下載 {url}",
-        ja: "{url} をダウンロードできません";
-
-    fn err_github_bad_response() =>
-        en: "GitHub returned something that is not a release description",
-        zh_hans: "GitHub 返回的内容不是发布信息",
-        zh_hant: "GitHub 回傳的內容不是發布資訊",
-        ja: "GitHub の応答がリリース情報ではありません";
-
-    fn err_cannot_replace_exe() =>
-        en: "cannot replace the running executable",
-        zh_hans: "无法替换正在运行的可执行文件",
-        zh_hant: "無法替換正在執行的可執行檔",
-        ja: "実行中の実行ファイルを置き換えられません";
-
-    fn err_cannot_locate_exe() =>
-        en: "cannot locate the running executable",
-        zh_hans: "无法定位正在运行的可执行文件",
-        zh_hant: "無法定位正在執行的可執行檔",
-        ja: "実行中の実行ファイルの場所を特定できません";
-
-    fn err_bad_own_version() =>
-        en: "this build has a malformed version number",
-        zh_hans: "这个构建的版本号格式错误",
-        zh_hant: "這個組建的版本號格式錯誤",
-        ja: "このビルドのバージョン番号が不正です";
-
-    fn err_signature_file_bad() =>
-        en: "the signature file is not readable as hex",
-        zh_hans: "签名文件不是可读的十六进制",
-        zh_hant: "簽章檔案不是可讀的十六進位",
-        ja: "署名ファイルを 16 進数として読み取れません";
-
-    fn err_checksums_not_text() =>
-        en: "SHA256SUMS is not text",
-        zh_hans: "SHA256SUMS 不是文本",
-        zh_hant: "SHA256SUMS 不是文字",
-        ja: "SHA256SUMS がテキストではありません";
-
-    fn err_signing_key_malformed() =>
-        en: "the signing key compiled into this build is malformed",
-        zh_hans: "编入这个构建的签名公钥格式错误",
-        zh_hant: "編入這個組建的簽章公鑰格式錯誤",
-        ja: "このビルドに組み込まれた署名鍵が不正です";
 }
 
 messages! {
@@ -2217,19 +2059,7 @@ mod emphasis_tests {
     }
 }
 
-messages! {
-    fn err_release_tag_not_a_version(tag: &str) =>
-        en: "the latest release is tagged `{tag}`, which is not a version",
-        zh_hans: "最新发布的标签是 `{tag}`，不是一个版本号",
-        zh_hant: "最新發布的標籤是 `{tag}`，不是一個版本號",
-        ja: "最新リリースのタグは `{tag}` で、バージョン番号ではありません";
-
-    fn err_signature_wrong_length() =>
-        en: "the signature is not 64 bytes",
-        zh_hans: "签名不是 64 字节",
-        zh_hant: "簽章不是 64 位元組",
-        ja: "署名が 64 バイトではありません";
-}
+messages! {}
 
 messages! {
     fn field_email() =>

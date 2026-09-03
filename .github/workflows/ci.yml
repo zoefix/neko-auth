@@ -27,8 +27,8 @@ jobs:
       - name: Test
         run: cargo test --all-targets
 
-      # The build a user gets with --no-default-features: no image parsing, no
-      # networking, no clipboard. It must keep compiling and passing.
+      # The build a user gets with --no-default-features: no image parsing and
+      # no clipboard. It must keep compiling and passing.
       - name: Test the minimal build
         run: cargo test --all-targets --no-default-features
 
