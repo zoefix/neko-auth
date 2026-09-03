@@ -34,6 +34,7 @@ INSTALL_DIR="${NEKO_AUTH_INSTALL_DIR:-$HOME/.local/bin}"
 SIGNING_KEY_HEX=""
 
 red() { printf '\033[31m%s\033[0m\n' "$1" >&2; }
+yellow() { printf '\033[33m%s\033[0m\n' "$1" >&2; }
 dim() { printf '\033[2m%s\033[0m\n' "$1"; }
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 die() { red "error: $1"; exit 1; }
@@ -120,6 +121,56 @@ add_to_path() {
     NEEDS_RELOAD="$rc"
 }
 
+# The first `neko-auth` on PATH that is not the one we just installed, if it
+# comes earlier than ours. Since the install script is the only way to upgrade,
+# a copy that keeps winning would make an upgrade look like it silently did
+# nothing — which is exactly what a stale `cargo install` copy in ~/.cargo/bin
+# does when that directory comes first.
+shadowing_copy() {
+    saved_ifs="$IFS"
+    found=""
+    IFS=":"
+    # Splitting on IFS is the point here, so $PATH is deliberately unquoted.
+    # shellcheck disable=SC2086
+    set -- $PATH
+    IFS="$saved_ifs"
+    for dir in "$@"; do
+        if [ -z "$dir" ]; then
+            continue
+        fi
+        # Anything at or after our own directory is shadowed by us, not us by
+        # it, so the search stops there.
+        if [ "$dir" = "$INSTALL_DIR" ]; then
+            break
+        fi
+        if [ -x "$dir/$BIN" ]; then
+            found="$dir/$BIN"
+            break
+        fi
+    done
+    if [ -z "$found" ]; then
+        return 1
+    fi
+    printf '%s' "$found"
+}
+
+warn_about_shadowing() {
+    shadow=""
+    shadow="$(shadowing_copy)" || true
+    if [ -z "$shadow" ]; then
+        return 0
+    fi
+    printf '\n'
+    yellow "warning: $shadow comes earlier on PATH, so that is the copy that will run."
+    shadow_version="$("$shadow" --version 2>/dev/null || echo "unknown version")"
+    printf '  It reports: %s\n' "$shadow_version" >&2
+    case "$shadow" in
+        *"/.cargo/bin/$BIN") printf '  Remove it with:  cargo uninstall %s\n' "$BIN" >&2 ;;
+        *) printf '  Remove it with:  rm %s\n' "$shadow" >&2 ;;
+    esac
+    printf '  Or run this copy directly:  %s\n' "$INSTALL_DIR/$BIN" >&2
+}
+
 # --- go ---------------------------------------------------------------------
 
 target="$(detect_target)"
@@ -188,7 +239,12 @@ mv -f "$INSTALL_DIR/$BIN.new" "$INSTALL_DIR/$BIN"
 
 NEEDS_RELOAD=""
 case ":$PATH:" in
-    *":$INSTALL_DIR:"*) dim "  $INSTALL_DIR is already on PATH" ;;
+    *":$INSTALL_DIR:"*)
+        dim "  $INSTALL_DIR is already on PATH"
+        # Only meaningful when our directory was already on PATH: add_to_path
+        # prepends, so a freshly added one wins on its own.
+        warn_about_shadowing
+        ;;
     *) [ "${NEKO_AUTH_NO_PATH:-}" = "1" ] || add_to_path ;;
 esac
 

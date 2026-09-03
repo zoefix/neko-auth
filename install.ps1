@@ -30,6 +30,33 @@ function Fail($Message) {
     exit 1
 }
 
+# The install script is the only way to upgrade, so a different copy winning on
+# PATH would make an upgrade look like it silently did nothing. Worth checking
+# on Windows in particular: the PATH entry below is appended, so anything
+# already on PATH — a `cargo install` copy in ~\.cargo\bin, say — keeps winning
+# even on a first install.
+function Warn-IfShadowed($Ours) {
+    # Bound to a variable before any property access: Set-StrictMode is on,
+    # and Get-Command yields nothing at all when the command is not found.
+    $command = Get-Command $Bin -CommandType Application -ErrorAction SilentlyContinue |
+               Select-Object -First 1
+    if (-not $command) { return }
+    $resolved = $command.Source
+    if (-not $resolved) { return }
+    if ([IO.Path]::GetFullPath($resolved) -ieq [IO.Path]::GetFullPath($Ours)) { return }
+
+    Write-Host ''
+    Write-Host "warning: $resolved comes earlier on PATH, so that is the copy that will run." -ForegroundColor Yellow
+    $its = try { & $resolved --version } catch { 'unknown version' }
+    Write-Host "  It reports: $its"
+    if ($resolved -like '*\.cargo\bin\*') {
+        Write-Host "  Remove it with:  cargo uninstall $Bin"
+    } else {
+        Write-Host "  Remove it with:  Remove-Item '$resolved'"
+    }
+    Write-Host "  Or run this copy directly:  $Ours"
+}
+
 # Only x86_64 Windows is published; ARM64 machines run the x64 build under
 # emulation, which works but is worth saying out loud.
 $arch = $env:PROCESSOR_ARCHITECTURE
@@ -119,6 +146,8 @@ try {
             $needsNewShell = $true
         }
     }
+
+    Warn-IfShadowed $dest
 
     Write-Host ''
     $reported = try { & $dest --version } catch { "$Bin $Version" }
