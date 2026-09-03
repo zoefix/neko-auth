@@ -111,6 +111,9 @@ add_to_path() {
     if [ "$(basename "$rc")" = "config.fish" ]; then
         printf '\n%s\nfish_add_path %s\n' "$marker" "$INSTALL_DIR" >> "$rc"
     else
+        # $PATH is deliberately left unexpanded: the literal string has to
+        # reach the startup file, not this installer's value of it.
+        # shellcheck disable=SC2016
         printf '\n%s\nexport PATH="%s:$PATH"\n' "$marker" "$INSTALL_DIR" >> "$rc"
     fi
     printf '  added %s to PATH in %s\n' "$INSTALL_DIR" "$rc"
