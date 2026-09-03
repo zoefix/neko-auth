@@ -5,6 +5,73 @@ use std::sync::OnceLock;
 
 use crossterm::style::Stylize;
 
+/// Switches the Windows console to UTF-8 for the life of the process.
+///
+/// Rust writes UTF-8, but the console decodes output using its own code page,
+/// which on a Chinese or Japanese Windows is not UTF-8. Everything non-ASCII
+/// then arrives as mojibake — the whole translated interface, and even the `›`
+/// in the prompt. The previous code page is restored when the returned guard
+/// drops, so the user's terminal is not left reconfigured.
+///
+/// Does nothing anywhere else; every other platform already speaks UTF-8.
+///
+/// Written as two whole functions rather than one with `#[cfg]` blocks inside:
+/// attributes on expressions are a trap, and this is a path that cannot be
+/// compiled on the machine it was written on.
+#[cfg(windows)]
+pub fn use_utf8_console() -> ConsoleGuard {
+    use windows_sys::Win32::System::Console::{
+        GetConsoleCP, GetConsoleOutputCP, SetConsoleCP, SetConsoleOutputCP,
+    };
+    const CP_UTF8: u32 = 65001;
+
+    unsafe {
+        // Zero means the handle is not a console — a pipe, say — and there is
+        // then nothing to change or put back.
+        let previous = ConsoleGuard {
+            input: GetConsoleCP(),
+            output: GetConsoleOutputCP(),
+        };
+        if previous.output != 0 {
+            SetConsoleOutputCP(CP_UTF8);
+        }
+        if previous.input != 0 {
+            SetConsoleCP(CP_UTF8);
+        }
+        previous
+    }
+}
+
+#[cfg(not(windows))]
+pub fn use_utf8_console() -> ConsoleGuard {
+    ConsoleGuard
+}
+
+/// Restores the console code page on the way out.
+#[cfg(windows)]
+pub struct ConsoleGuard {
+    input: u32,
+    output: u32,
+}
+
+#[cfg(windows)]
+impl Drop for ConsoleGuard {
+    fn drop(&mut self) {
+        use windows_sys::Win32::System::Console::{SetConsoleCP, SetConsoleOutputCP};
+        unsafe {
+            if self.output != 0 {
+                SetConsoleOutputCP(self.output);
+            }
+            if self.input != 0 {
+                SetConsoleCP(self.input);
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub struct ConsoleGuard;
+
 /// Colour is disabled when output is redirected, and by `NO_COLOR`.
 pub fn colored() -> bool {
     static ENABLED: OnceLock<bool> = OnceLock::new();

@@ -20,6 +20,11 @@ fn main() -> ExitCode {
     secrets::harden_process();
     secrets::install_panic_hook();
 
+    // Held for the whole run: the Windows console decodes output with its own
+    // code page, and on a Chinese or Japanese system that is not UTF-8, so the
+    // translated interface would arrive as mojibake. Restored on the way out.
+    let _console = ui::use_utf8_console();
+
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) if e.downcast_ref::<Cancelled>().is_some() => {

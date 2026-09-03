@@ -11,9 +11,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
+use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::history::MemHistory;
 use rustyline::{CompletionType, Config, Context, Editor};
-use rustyline::{Helper, Highlighter, Hinter, Validator};
+use rustyline::{Helper, Hinter, Validator};
 
 use crate::app::App;
 use crate::i18n::{self, Language};
@@ -77,12 +78,15 @@ pub fn run(mut app: App) -> Result<()> {
         Editor::with_history(config, MemHistory::new())?;
     editor.set_helper(Some(NekoHelper {
         accounts: Vec::new(),
+        locked: false,
     }));
 
     loop {
         // Refresh completions, and notice if the idle watchdog has locked us.
+        let unlocked = app.vault.is_unlocked();
         if let Some(helper) = editor.helper_mut() {
-            helper.accounts = if app.vault.is_unlocked() {
+            helper.locked = !unlocked;
+            helper.accounts = if unlocked {
                 app.vault
                     .list()
                     .map(|list| list.into_iter().map(|a| a.display()).collect())
@@ -92,14 +96,7 @@ pub fn run(mut app: App) -> Result<()> {
             };
         }
 
-        let prompt = if app.vault.is_unlocked() {
-            format!("{} ", ui::cyan("neko-auth ›"))
-        } else {
-            format!(
-                "{} ",
-                ui::yellow(&format!("neko-auth {} ›", i18n::prompt_locked_suffix()))
-            )
-        };
+        let prompt = prompt_for(!unlocked);
 
         match editor.readline(&prompt) {
             Ok(line) => {
@@ -335,9 +332,50 @@ fn tokenize(line: &str) -> Vec<String> {
     words
 }
 
-#[derive(Helper, Highlighter, Hinter, Validator)]
+#[derive(Helper, Hinter, Validator)]
 struct NekoHelper {
     accounts: Vec<String>,
+    locked: bool,
+}
+
+/// The prompt string handed to `readline()`.
+///
+/// Deliberately plain. rustyline measures the prompt to work out where the
+/// cursor goes, and its Windows backend counts ANSI escapes as visible columns
+/// while its Unix backend skips them — so a pre-coloured prompt puts the cursor
+/// about fifteen columns too far right on Windows and looks fine everywhere
+/// else. Colour is applied in `highlight_prompt`, which rustyline excludes from
+/// the measurement.
+fn prompt_for(locked: bool) -> String {
+    if locked {
+        format!("neko-auth {} › ", i18n::prompt_locked_suffix())
+    } else {
+        "neko-auth › ".to_string()
+    }
+}
+
+impl Highlighter for NekoHelper {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        _default: bool,
+    ) -> std::borrow::Cow<'b, str> {
+        if !ui::colored() {
+            return std::borrow::Cow::Borrowed(prompt);
+        }
+        let painted = if self.locked {
+            ui::yellow(prompt)
+        } else {
+            ui::cyan(prompt)
+        };
+        std::borrow::Cow::Owned(painted)
+    }
+
+    // Colour is applied to the prompt only, and the prompt is redrawn on
+    // every keystroke anyway, so nothing else needs to trigger a repaint.
+    fn highlight_char(&self, _line: &str, _pos: usize, _kind: CmdKind) -> bool {
+        false
+    }
 }
 
 impl Completer for NekoHelper {
@@ -416,10 +454,51 @@ mod tests {
         assert!(is_safe_to_remember(&["get".into(), "github".into()]));
     }
 
+    /// The prompt reaches rustyline uncoloured.
+    ///
+    /// rustyline's Windows backend measures escape sequences as visible
+    /// columns, so a coloured prompt here would leave the cursor stranded to
+    /// the right of where the user is typing — and would look perfectly fine
+    /// on Linux and macOS, which is how it shipped the first time.
+    #[test]
+    fn the_prompt_carries_no_escape_sequences() {
+        for locked in [false, true] {
+            let prompt = prompt_for(locked);
+            assert!(
+                !prompt.contains('\x1b'),
+                "locked={locked}: prompt is pre-coloured: {prompt:?}"
+            );
+            assert!(prompt.starts_with("neko-auth "));
+            assert!(prompt.ends_with("› "));
+        }
+        // The locked prompt says so, in whatever language is active.
+        assert!(prompt_for(true).len() > prompt_for(false).len());
+    }
+
+    #[test]
+    fn the_highlighter_is_what_adds_the_colour() {
+        let plain = prompt_for(false);
+        let helper = NekoHelper {
+            accounts: Vec::new(),
+            locked: false,
+        };
+        let painted = helper.highlight_prompt(&plain, true);
+
+        if ui::colored() {
+            assert!(painted.contains('\x1b'), "colour should be applied here");
+            assert!(painted.contains("neko-auth"));
+        } else {
+            // With colour off the prompt passes through untouched, so nothing
+            // has to be stripped later.
+            assert_eq!(painted, plain);
+        }
+    }
+
     #[test]
     fn completion_offers_commands_then_account_names() {
         let helper = NekoHelper {
             accounts: vec!["GitHub (zoe)".into(), "AWS (root)".into()],
+            locked: false,
         };
         let ctx_history = MemHistory::new();
         let ctx = Context::new(&ctx_history);

@@ -23,6 +23,8 @@ Two-factor secrets go into a local, encrypted SQLite vault. Nothing is synced,
 nothing is uploaded, and there is no account to sign in to. The only command
 that opens a network socket is `update`, and only when you run it.
 
+Even if your laptop is stolen or the SQLite database file is copied, the contents remain inaccessible without your email and password—everything is protected by your password.
+
 ```
 $ neko-auth
 Email: zoe@example.com

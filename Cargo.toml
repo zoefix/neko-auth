@@ -66,6 +66,11 @@ self-replace = { version = "1.5", optional = true }
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "0.38", features = ["process", "fs"] }
 
+[target.'cfg(windows)'.dependencies]
+# Only for the console code page. Already in the tree via crossterm, so this
+# costs nothing but makes the dependency explicit.
+windows-sys = { version = "0.60", features = ["Win32_System_Console"] }
+
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.1"
